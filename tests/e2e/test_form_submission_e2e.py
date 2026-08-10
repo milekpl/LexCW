@@ -191,7 +191,6 @@ def test_edit_form_preserves_data(page: Page, app_url: str) -> None:
     
     # Navigate to entries list
     page.goto(f"{app_url}/entries")
-    page.wait_for_timeout(1000)
     
     # Find and click edit link
     edit_link = page.locator(f'a[href*="{test_word}"][href*="/edit"]').first

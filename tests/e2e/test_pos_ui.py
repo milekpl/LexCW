@@ -44,7 +44,7 @@ def test_entry_pos_propagates_to_senses(page: Page, flask_test_server):
     page.goto(f"{base_url}/entries/add")
 
     # Wait for page to load
-    page.wait_for_load_state("networkidle")
+    page.wait_for_load_state("load")
     page.wait_for_selector("input.lexical-unit-text", timeout=10000)
 
     # Fill in lexical unit
@@ -121,7 +121,7 @@ def test_entry_pos_propagation_with_existing_sense_pos(page: Page, flask_test_se
     print("Opening entry form...")
     page.goto(f"{base_url}/entries/add")
 
-    page.wait_for_load_state("networkidle")
+    page.wait_for_load_state("load")
     page.wait_for_selector("input.lexical-unit-text", timeout=10000)
 
     # Fill in lexical unit

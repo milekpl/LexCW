@@ -29,7 +29,7 @@ class TestEtymologyTypePopulation:
         """
         # Navigate to create new entry
         page.goto(f"{app_url}/entries/add")
-        page.wait_for_load_state('networkidle')
+        page.wait_for_load_state('load')
 
         # Wait for etymology section to be visible
         page.wait_for_selector('#etymology-container', state='visible')
@@ -70,7 +70,7 @@ class TestEtymologyTypePopulation:
         """
         # Create new entry
         page.goto(f"{app_url}/entries/add")
-        page.wait_for_load_state('networkidle')
+        page.wait_for_load_state('load')
 
         # Fill basic entry data
         page.fill('input.lexical-unit-text', 'testword')
@@ -122,7 +122,7 @@ class TestEtymologyRoundtrip:
 
         # ── Create entry with etymology ────────────────────────────────────
         page.goto(f"{base_url}/entries/add")
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
 
         page.fill("input.lexical-unit-text", headword)
 
@@ -166,7 +166,7 @@ class TestEtymologyRoundtrip:
         # ── Save ────────────────────────────────────────────────────────────
         page.wait_for_timeout(800)
         try:
-            page.wait_for_load_state("networkidle", timeout=10000)
+            page.wait_for_load_state("load", timeout=10000)
         except Exception:
             pass
 
@@ -238,7 +238,7 @@ class TestEtymologyIpaValidation:
         the row language is an IPA code (e.g., seh-fonipa).
         """
         page.goto(f"{app_url}/entries/add")
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
 
         page.fill("input.lexical-unit-text", "etymology-ipa-validation")
 

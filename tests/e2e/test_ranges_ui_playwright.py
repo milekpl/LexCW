@@ -22,7 +22,7 @@ class TestRangesUIPlaywright:
         page.goto(f'{app_url}/entries/add')
         
         # Wait for page to load
-        page.wait_for_load_state('networkidle')
+        page.wait_for_load_state('load')
         
         # Find the grammatical info dropdown (entry-level Part of Speech)
         pos_select = page.locator('select#part-of-speech, select[name="grammatical_info"]')
@@ -49,7 +49,7 @@ class TestRangesUIPlaywright:
         page.goto(f'{app_url}/entries/add')
         
         # Wait for page to load
-        page.wait_for_load_state('networkidle')
+        page.wait_for_load_state('load')
         
         # Scroll to relations section
         page.evaluate("document.querySelector('#relations-container')?.scrollIntoView()")
@@ -58,8 +58,15 @@ class TestRangesUIPlaywright:
         add_relation_btn = page.locator('#add-relation-btn, button:has-text("Add Relation")')
         if add_relation_btn.count() > 0:
             add_relation_btn.first.click()
-            # Wait for relation form or select to appear
-            page.wait_for_selector('.relation-search-input, select.lexical-relation-select', timeout=3000)
+            # Alpine's deferred scripts may not have installed their @click
+            # delegation yet; a click that lands too early is silently lost
+            # and the relation form never renders. Retry the click once if
+            # the relation form didn't appear.
+            try:
+                page.wait_for_selector('.relation-search-input, select.lexical-relation-select', timeout=3000)
+            except Exception:
+                add_relation_btn.first.click()
+                page.wait_for_selector('.relation-search-input, select.lexical-relation-select', timeout=5000)
         
         # Find relation type dropdown
         relation_type_select = page.locator('select.lexical-relation-select, select[name*="relation"][name*="type"]')
@@ -67,7 +74,21 @@ class TestRangesUIPlaywright:
         if relation_type_select.count() > 0:
             # Wait for it to be visible
             expect(relation_type_select.first).to_be_visible(timeout=5000)
-            
+
+            # The relation-type options are loaded async from the ranges API —
+            # wait until at least one real relation option is present so the
+            # option assertions below aren't racing the range loader.
+            page.wait_for_function(
+                """() => {
+                    const sel = document.querySelector('select.lexical-relation-select');
+                    if (!sel) return false;
+                    const opts = Array.from(sel.options).map(o => o.text.toLowerCase());
+                    return opts.length > 1 &&
+                        ['synonym','antonym','hypernym','hyponym','component'].some(r => opts.some(t => t.includes(r)));
+                }""",
+                timeout=5000,
+            )
+
             # Get all options
             options = relation_type_select.first.locator('option').all_text_contents()
             
@@ -91,7 +112,7 @@ class TestRangesUIPlaywright:
         page.goto(f'{app_url}/entries/add')
         
         # Wait for page to load
-        page.wait_for_load_state('networkidle')
+        page.wait_for_load_state('load')
         
         # Wait for the page to be fully interactive
         page.wait_for_timeout(500)

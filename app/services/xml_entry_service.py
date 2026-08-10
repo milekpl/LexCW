@@ -495,16 +495,20 @@ class XMLEntryService:
     def update_entry(self, entry_id: str, xml_string: str) -> dict[str, Any]:
         """
         Update an existing entry.
-        
-        Uses delete + add approach for simplicity and reliability.
-        
+
+        Uses a single atomic XQuery update (``replace node``) so there is never
+        a window where the entry is deleted but not yet re-inserted — the old
+        delete-then-insert approach could be observed mid-flight by concurrent
+        readers (the threaded test server made this a real race: the entry
+        briefly vanished and GETs 404'd).
+
         Args:
             entry_id: Entry ID to update
             xml_string: New LIFT XML string
-            
+
         Returns:
             Dictionary with entry ID and status
-            
+
         Raises:
             EntryNotFoundError: If entry doesn't exist
             InvalidXMLError: If XML is invalid
@@ -565,25 +569,15 @@ class XMLEntryService:
             logger.error(f"Error preparing XML for update: {prep_error}")
             raise
         try:
-            # Delete old entry
-            delete_query = XQueryBuilder.build_delete_entry_query(
-                entry_id, self.database, self._has_namespace
+            # Single atomic update — replace the old entry node with the new one.
+            update_query = XQueryBuilder.build_update_entry_query(
+                entry_id, xml_clean, self.database, self._has_namespace
             )
             
-            # Insert new entry
-            insert_query = XQueryBuilder.build_insert_entry_query(
-                xml_clean, self.database, self._has_namespace
-            )
-            
-            logger.debug(f"Deleting old entry {entry_id}")
-            q_del = session.query(delete_query)
-            q_del.execute()
-            q_del.close()
-            
-            logger.debug(f"Inserting updated entry {entry_id}")
-            q_ins = session.query(insert_query)
-            q_ins.execute()
-            q_ins.close()
+            logger.debug(f"Replacing entry {entry_id}")
+            q_upd = session.query(update_query)
+            q_upd.execute()
+            q_upd.close()
             
             # CRITICAL: Flush changes
             try:

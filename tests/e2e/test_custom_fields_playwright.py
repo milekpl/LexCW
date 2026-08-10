@@ -52,7 +52,6 @@ class TestCustomFieldsPlaywright:
         add_sense_btn = page.locator('#add-sense-btn')
         if add_sense_btn.is_visible():
             add_sense_btn.click()
-            page.wait_for_timeout(300)
 
         sense_def = page.locator('textarea.definition-text').first
         if sense_def.is_visible():
@@ -62,7 +61,6 @@ class TestCustomFieldsPlaywright:
 
     def test_literal_meaning_field_visible(self, page: Page, app_url) -> None:
         page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-        page.wait_for_timeout(500)
 
         label = page.locator('label').filter(has_text=re.compile(r'Literal Meaning', re.IGNORECASE)).first
         expect(label).to_be_visible()
@@ -73,50 +71,38 @@ class TestCustomFieldsPlaywright:
 
     def test_add_literal_meaning_language(self, page: Page, app_url: str) -> None:
         page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-        page.wait_for_timeout(500)
 
         page.on('dialog', lambda dialog: dialog.accept('en'))
 
         container = _field_container(page, 'Literal Meaning')
         before = _textareas_in(container).count()
         _add_lang_btn(container).click()
-        page.wait_for_timeout(300)
-
-        after = _textareas_in(container).count()
-        assert after > before, "No new textarea appeared"
+        expect(_textareas_in(container)).to_have_count(before + 1, timeout=3000)
 
         # A remove button should appear for the new row
         assert _remove_btns_in(container).count() > 0
 
     def test_remove_literal_meaning_language(self, page: Page, app_url: str) -> None:
         page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-        page.wait_for_timeout(500)
 
         # Alpine addRow doesn't use dialog; auto-picks next language
         container = _field_container(page, 'Literal Meaning')
         # Need at least 2 rows for remove button to be visible (x-show)
         _add_lang_btn(container).click()
-        page.wait_for_timeout(300)
         _add_lang_btn(container).click()
-        page.wait_for_timeout(300)
-
+        expect(_textareas_in(container)).to_have_count(2, timeout=3000)
         before = _textareas_in(container).count()
         page.wait_for_selector('button:has-text("×"):visible', timeout=3000)
         _remove_btns_in(container).first.click()
-        page.wait_for_timeout(500)
-
-        after = _textareas_in(container).count()
-        assert after < before, "Field was not removed"
+        expect(_textareas_in(container)).to_have_count(before - 1, timeout=3000)
 
     def test_fill_literal_meaning_content(self, page: Page, app_url: str) -> None:
         page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-        page.wait_for_timeout(500)
 
         page.on('dialog', lambda dialog: dialog.accept('en'))
 
         container = _field_container(page, 'Literal Meaning')
         _add_lang_btn(container).click()
-        page.wait_for_timeout(300)
 
         field = _textareas_in(container).first
         field.fill('sun-flower')
@@ -126,7 +112,6 @@ class TestCustomFieldsPlaywright:
 
     def test_exemplar_field_visible_in_sense(self, page: Page, app_url: str) -> None:
         page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-        page.wait_for_timeout(500)
 
         label = page.locator('label').filter(has_text='Exemplar').first
         expect(label).to_be_visible()
@@ -136,43 +121,34 @@ class TestCustomFieldsPlaywright:
 
     def test_add_exemplar_language(self, page: Page, app_url: str) -> None:
         page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-        page.wait_for_timeout(500)
 
         page.on('dialog', lambda dialog: dialog.accept('en'))
 
         container = _field_container(page, 'Exemplar')
         before = _textareas_in(container).count()
         _add_lang_btn(container).click()
-        page.wait_for_timeout(300)
-
-        assert _textareas_in(container).count() > before
+        expect(_textareas_in(container)).to_have_count(before + 1, timeout=3000)
 
     def test_remove_exemplar_language(self, page: Page, app_url: str) -> None:
         page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-        page.wait_for_timeout(500)
 
         page.on('dialog', lambda dialog: dialog.accept('en'))
 
         container = _field_container(page, 'Exemplar')
         _add_lang_btn(container).click()
-        page.wait_for_timeout(300)
-
+        expect(_textareas_in(container)).to_have_count(1, timeout=3000)
         before = _textareas_in(container).count()
         page.wait_for_selector('button:has-text("×"):visible', timeout=3000)
         _remove_btns_in(container).first.click()
-        page.wait_for_timeout(500)
-
-        assert _textareas_in(container).count() < before
+        expect(_textareas_in(container)).to_have_count(before - 1, timeout=3000)
 
     def test_fill_exemplar_content(self, page: Page, app_url: str) -> None:
         page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-        page.wait_for_timeout(500)
 
         page.on('dialog', lambda dialog: dialog.accept('en'))
 
         container = _field_container(page, 'Exemplar')
         _add_lang_btn(container).click()
-        page.wait_for_timeout(300)
 
         field = _textareas_in(container).first
         field.fill('mice')
@@ -182,7 +158,6 @@ class TestCustomFieldsPlaywright:
 
     def test_scientific_name_field_visible_in_sense(self, page: Page, app_url: str) -> None:
         page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-        page.wait_for_timeout(500)
 
         label = page.locator('label').filter(has_text='Scientific Name').first
         expect(label).to_be_visible()
@@ -192,43 +167,34 @@ class TestCustomFieldsPlaywright:
 
     def test_add_scientific_name_language(self, page: Page, app_url: str) -> None:
         page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-        page.wait_for_timeout(500)
 
         page.on('dialog', lambda dialog: dialog.accept('en'))
 
         container = _field_container(page, 'Scientific Name')
         before = _textareas_in(container).count()
         _add_lang_btn(container).click()
-        page.wait_for_timeout(300)
-
-        assert _textareas_in(container).count() > before
+        expect(_textareas_in(container)).to_have_count(before + 1, timeout=3000)
 
     def test_remove_scientific_name_language(self, page: Page, app_url: str) -> None:
         page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-        page.wait_for_timeout(500)
 
         page.on('dialog', lambda dialog: dialog.accept('en'))
 
         container = _field_container(page, 'Scientific Name')
         _add_lang_btn(container).click()
-        page.wait_for_timeout(300)
-
+        expect(_textareas_in(container)).to_have_count(1, timeout=3000)
         before = _textareas_in(container).count()
         page.wait_for_selector('button:has-text("×"):visible', timeout=3000)
         _remove_btns_in(container).first.click()
-        page.wait_for_timeout(500)
-
-        assert _textareas_in(container).count() < before
+        expect(_textareas_in(container)).to_have_count(before - 1, timeout=3000)
 
     def test_fill_scientific_name_content(self, page: Page, app_url: str) -> None:
         page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-        page.wait_for_timeout(500)
 
         page.on('dialog', lambda dialog: dialog.accept('en'))
 
         container = _field_container(page, 'Scientific Name')
         _add_lang_btn(container).click()
-        page.wait_for_timeout(300)
 
         field = _textareas_in(container).first
         field.fill('Helianthus annuus')
@@ -236,23 +202,19 @@ class TestCustomFieldsPlaywright:
 
     def test_add_multiple_languages_to_literal_meaning(self, page: Page, app_url: str) -> None:
         page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-        page.wait_for_timeout(500)
 
         langs = iter(['en', 'fr'])
         page.on('dialog', lambda dialog: dialog.accept(next(langs, 'en')))
 
         container = _field_container(page, 'Literal Meaning')
         btn = _add_lang_btn(container)
+        before = _textareas_in(container).count()
         btn.click()
-        page.wait_for_timeout(200)
         btn.click()
-        page.wait_for_timeout(200)
-
-        assert _textareas_in(container).count() >= 2
+        expect(_textareas_in(container)).to_have_count(before + 2, timeout=3000)
 
     def test_all_custom_fields_visible_together(self, page: Page, app_url: str) -> None:
         page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-        page.wait_for_timeout(500)
 
         for label_text in ['Literal Meaning', 'Exemplar', 'Scientific Name']:
             label = page.locator('label').filter(has_text=re.compile(label_text, re.IGNORECASE)).first
@@ -260,7 +222,6 @@ class TestCustomFieldsPlaywright:
 
     def test_custom_fields_have_help_text(self, page: Page, app_url: str) -> None:
         page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-        page.wait_for_timeout(500)
 
         for label_text in ['Literal Meaning', 'Exemplar', 'Scientific Name']:
             container = page.locator('.mb-3').filter(has=page.locator(
@@ -273,7 +234,6 @@ class TestCustomFieldsPlaywright:
 
         container = _field_container(page, 'Exemplar')
         _add_lang_btn(container).click()
-        page.wait_for_timeout(300)
 
         field = _textareas_in(container).first
         field.fill('first sense exemplar')
@@ -284,8 +244,9 @@ class TestCustomFieldsPlaywright:
         exemplar_labels = page.locator('label').filter(has_text=re.compile(r'Exemplar', re.IGNORECASE))
         before = exemplar_labels.count()
 
+        senses_before = page.locator('.sense-item').count()
         page.locator('#add-sense-btn').click()
-        page.wait_for_timeout(500)
+        expect(page.locator('.sense-item')).to_have_count(senses_before + 1, timeout=3000)
 
         sense_defs = page.locator('.sense-item').nth(1).locator('textarea.definition-text')
         if sense_defs.count() > 0:

@@ -33,7 +33,7 @@ class TestRealtimeIPAValidation:
         """
         # Navigate to create entry
         page.goto(f"{app_url}/entries/add")
-        page.wait_for_load_state('networkidle')
+        page.wait_for_load_state('load')
 
         # Fill basic data
         page.fill('input.lexical-unit-text', 'testword')
@@ -77,7 +77,7 @@ class TestRealtimeIPAValidation:
         """
         # Navigate to create entry
         page.goto(f"{app_url}/entries/add")
-        page.wait_for_load_state('networkidle')
+        page.wait_for_load_state('load')
 
         # Fill basic data
         page.fill('input.lexical-unit-text', 'testword')
@@ -130,7 +130,7 @@ class TestRealtimeIPAValidation:
         """
         # Navigate to create entry
         page.goto(f"{app_url}/entries/add")
-        page.wait_for_load_state('networkidle')
+        page.wait_for_load_state('load')
 
         # Fill basic data
         page.fill('input.lexical-unit-text', 'testword')
@@ -173,7 +173,7 @@ class TestRealtimeIPAValidation:
         """
         # Navigate to create entry
         page.goto(f"{app_url}/entries/add")
-        page.wait_for_load_state('networkidle')
+        page.wait_for_load_state('load')
 
         # Fill basic data
         page.fill('input.lexical-unit-text', 'testword')
@@ -224,7 +224,7 @@ class TestRealtimeIPAValidation:
         """
         # Navigate to create entry
         page.goto(f"{app_url}/entries/add")
-        page.wait_for_load_state('networkidle')
+        page.wait_for_load_state('load')
 
         # Fill basic data
         page.fill('input.lexical-unit-text', 'testword')
@@ -282,7 +282,7 @@ class TestIPARoundtrip:
 
         # ── Create entry with IPA ──────────────────────────────────────────
         page.goto(f"{base_url}/entries/add")
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
 
         # Fill lexical unit
         page.fill("input.lexical-unit-text", headword)
@@ -313,7 +313,7 @@ class TestIPARoundtrip:
         # ── Save ────────────────────────────────────────────────────────────
         page.wait_for_timeout(800)
         try:
-            page.wait_for_load_state("networkidle", timeout=10000)
+            page.wait_for_load_state("load", timeout=10000)
         except Exception:
             pass
 

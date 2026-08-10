@@ -29,7 +29,7 @@ def _log_in(page: Page, app_url: str, username: str, password: str) -> None:
     # without logging in — while still leaving /auth/login, which is why a
     # URL-based assertion is not enough to prove login worked.
     page.click(LOGIN_FORM_SUBMIT)
-    page.wait_for_load_state("networkidle")
+    page.wait_for_load_state("load")
 
 
 def _is_authenticated(page: Page, app_url: str) -> bool:
@@ -113,7 +113,7 @@ def test_deep_link_survives_the_login_round_trip(anonymous_page: Page, app_url, 
     anonymous_page.fill('input[name="username"]', E2E_USERNAME)
     anonymous_page.fill('input[name="password"]', E2E_PASSWORD)
     anonymous_page.click(LOGIN_FORM_SUBMIT)
-    anonymous_page.wait_for_load_state("networkidle")
+    anonymous_page.wait_for_load_state("load")
 
     assert "/auth/profile" in anonymous_page.url, (
         f"after login the user landed on {anonymous_page.url}, not the page they asked for"

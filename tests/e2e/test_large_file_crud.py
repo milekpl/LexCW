@@ -386,7 +386,7 @@ class DictionaryPage:
     def wait_for_results(self, timeout: int = 10):
         """Wait for search results to load."""
         # Wait for network to be idle (AJAX calls complete)
-        self.page.wait_for_load_state("networkidle", timeout=timeout * 1000)
+        self.page.wait_for_load_state("load", timeout=timeout * 1000)
         # Also wait a bit for DOM to update
         self.page.wait_for_timeout(500)
 
@@ -662,7 +662,7 @@ class TestSearchPerformance:
 
         try:
             # Wait for page to load
-            page.wait_for_load_state("networkidle", timeout=30000)
+            page.wait_for_load_state("load", timeout=30000)
 
             # Check if we have entries
             entry_count = dict_page.get_total_entry_count()
@@ -708,7 +708,7 @@ class TestMemoryUsage:
         page.goto(f"{app_url}/entries")
 
         try:
-            page.wait_for_load_state("networkidle", timeout=30000)
+            page.wait_for_load_state("load", timeout=30000)
             entry_count = dict_page.get_total_entry_count()
 
             if entry_count == 0:

@@ -75,7 +75,15 @@ class SearchService:
         self.dictionary_service = dictionary_service
         self.xml_service = xml_service
         self.default_backend = default_backend
-        
+
+    def close(self) -> None:
+        """Release owned resources (the XMLEntryService BaseX session)."""
+        if self.xml_service is not None:
+            try:
+                self.xml_service.close()
+            except Exception:
+                pass
+
     def search(
         self,
         query: Union[str, SearchQuery],

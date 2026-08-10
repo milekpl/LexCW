@@ -23,7 +23,7 @@ class TestQueryBuilderPage:
     def test_page_loads_successfully(self, page, app_url):
         """Test that the query builder page loads without errors."""
         page.goto(f"{app_url}/workbench/query-builder")
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
 
         # Check that main components are present
         expect(page.locator("h4:has-text('Query Builder')")).to_be_visible()
@@ -32,7 +32,7 @@ class TestQueryBuilderPage:
     def test_initial_filter_condition_present(self, page, app_url):
         """Test that an initial filter condition is present."""
         page.goto(f"{app_url}/workbench/query-builder")
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
 
         # First filter condition should be visible
         expect(page.locator(".filter-condition")).to_be_visible()
@@ -43,7 +43,7 @@ class TestQueryBuilderPage:
     def test_add_filter_button_exists(self, page, app_url):
         """Test that the Add Filter button exists."""
         page.goto(f"{app_url}/workbench/query-builder")
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
 
         expect(page.locator("#add-filter-btn")).to_be_visible()
         expect(page.locator("#add-filter-btn")).to_contain_text("Add Filter")
@@ -51,7 +51,7 @@ class TestQueryBuilderPage:
     def test_add_filter_button_works(self, page, app_url):
         """Test that clicking Add Filter adds a new condition."""
         page.goto(f"{app_url}/workbench/query-builder")
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
 
         # Count initial filters
         initial_count = page.locator(".filter-condition").count()
@@ -65,56 +65,56 @@ class TestQueryBuilderPage:
     def test_sort_by_select_exists(self, page, app_url):
         """Test that the Sort by select dropdown exists."""
         page.goto(f"{app_url}/workbench/query-builder")
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
 
         expect(page.locator("#sort-by-select")).to_be_visible()
 
     def test_sort_order_select_exists(self, page, app_url):
         """Test that the Sort order select dropdown exists."""
         page.goto(f"{app_url}/workbench/query-builder")
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
 
         expect(page.locator("#sort-order-select")).to_be_visible()
 
     def test_validate_button_exists(self, page, app_url):
         """Test that the Validate button exists."""
         page.goto(f"{app_url}/workbench/query-builder")
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
 
         expect(page.locator("#validate-query-btn")).to_be_visible()
 
     def test_preview_button_exists(self, page, app_url):
         """Test that the Preview button exists."""
         page.goto(f"{app_url}/workbench/query-builder")
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
 
         expect(page.locator("#preview-query-btn")).to_be_visible()
 
     def test_create_workset_button_exists(self, page, app_url):
         """Test that the Create Workset button exists."""
         page.goto(f"{app_url}/workbench/query-builder")
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
 
         expect(page.locator("#execute-query-btn")).to_be_visible()
 
     def test_query_preview_exists(self, page, app_url):
         """Test that the Query Preview section exists."""
         page.goto(f"{app_url}/workbench/query-builder")
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
 
         expect(page.locator("#query-preview-json")).to_be_visible()
 
     def test_saved_queries_section_exists(self, page, app_url):
         """Test that the Saved Queries section exists."""
         page.goto(f"{app_url}/workbench/query-builder")
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
 
         expect(page.locator("#saved-queries-list")).to_be_visible()
 
     def test_navigation_to_worksets(self, page, app_url):
         """Test navigation to Worksets."""
         page.goto(f"{app_url}/workbench/query-builder")
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
 
         # Find and click on Worksets link (in button group)
         worksets_link = page.locator(".btn-group a[href='/workbench/worksets']")
@@ -122,13 +122,13 @@ class TestQueryBuilderPage:
         worksets_link.click()
 
         # Should navigate to worksets
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
         assert "/workbench/worksets" in page.url
 
     def test_navigation_to_bulk_operations(self, page, app_url):
         """Test navigation to Bulk Operations."""
         page.goto(f"{app_url}/workbench/query-builder")
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
 
         # Find and click on Bulk Operations link (in button group)
         bulk_ops_link = page.locator(".btn-group a[href='/workbench/bulk-operations']")
@@ -136,28 +136,28 @@ class TestQueryBuilderPage:
         bulk_ops_link.click()
 
         # Should navigate to bulk operations
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
         assert "/workbench/bulk-operations" in page.url
 
     def test_worksets_link_from_button(self, page, app_url):
         """Test that Worksets link in button group works."""
         page.goto(f"{app_url}/workbench/query-builder")
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
 
         # Click on Worksets link
         page.click("a.btn-outline-primary[href='/workbench/worksets']")
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
 
         assert "/workbench/worksets" in page.url
 
     def test_bulk_operations_link_from_button(self, page, app_url):
         """Test that Bulk Operations link in button group works."""
         page.goto(f"{app_url}/workbench/query-builder")
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
 
         # Click on Bulk Operations link
         page.click("a.btn-outline-success[href='/workbench/bulk-operations']")
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
 
         assert "/workbench/bulk-operations" in page.url
 

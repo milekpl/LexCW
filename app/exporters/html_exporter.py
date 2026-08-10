@@ -508,8 +508,13 @@ body {{
             try:
                 from app.services.xml_entry_service import XMLEntryService
                 xml_service = XMLEntryService()
-                entry_data = xml_service.get_entry(entry_id)
-                return entry_data.get('xml', '')
+                try:
+                    entry_data = xml_service.get_entry(entry_id)
+                    return entry_data.get('xml', '')
+                finally:
+                    # Release the BaseX session — this runs per entry in export
+                    # loops; leaking a session per entry would pile up DB locks.
+                    xml_service.close()
             except Exception as e:
                 self.logger.debug(f"Could not get XML for entry {entry_id}: {e}")
 

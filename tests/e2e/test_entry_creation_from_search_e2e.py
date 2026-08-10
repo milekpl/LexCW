@@ -43,7 +43,6 @@ def test_create_entry_from_relation_search(page: Page, app_url: str) -> None:
 
     # Now go back to edit this entry and add a relation
     page.goto(f"{app_url}/entries")
-    page.wait_for_timeout(1000)
 
     # Find and click edit link for our entry
     edit_link = page.locator('a[href*="/edit"]:has-text("test_base_entry")').first
@@ -97,7 +96,6 @@ def test_create_entry_from_sense_relation_search(page: Page, app_url: str) -> No
 
     # Go back and edit
     page.goto(f"{app_url}/entries")
-    page.wait_for_timeout(1000)
 
     edit_link = page.locator('a[href*="/edit"]:has-text("test_sense_relation_entry")').first
     if edit_link.count() > 0:
@@ -154,7 +152,6 @@ def test_create_entry_from_variant_search(page: Page, app_url: str) -> None:
 
     # Go back and edit
     page.goto(f"{app_url}/entries")
-    page.wait_for_timeout(1000)
 
     edit_link = page.locator('a[href*="/edit"]:has-text("test_variant_parent")').first
     if edit_link.count() > 0:
@@ -238,7 +235,6 @@ def test_entry_creation_api(page: Page, app_url: str) -> None:
 
     # Optional: check UI search - best-effort, don't fail test if UI hasn't indexed yet
     page.goto(f"{app_url}/search")
-    page.wait_for_timeout(1000)
     search_input = page.locator('input[name="q"], .search-input, #search-input').first
     if search_input.count() > 0:
         search_input.fill(entry_name)
@@ -350,7 +346,6 @@ def test_circular_reference_detection(page: Page, app_url: str) -> None:
 
     # Go back and edit
     page.goto(f"{app_url}/entries")
-    page.wait_for_timeout(1000)
 
     edit_link = page.locator(f'a[href*="/edit"]:has-text("{entry_name}")').first
     if edit_link.count() > 0:

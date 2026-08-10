@@ -236,11 +236,13 @@ class XQueryBuilder:
         """
         prologue = XQueryBuilder.get_namespace_prologue(has_namespace)
         entry_path = XQueryBuilder.get_element_path("entry", has_namespace)
+        sense_path = XQueryBuilder.get_element_path("sense", has_namespace)
 
-        # Use descendant axis to find entry anywhere in the collection
-        # Entries are stored as separate documents, not under a lift root element
+        # Use the same broad selector as build_entry_exists_query /
+        # build_delete_entry_query so the update targets whatever the existence
+        # guard matched (entry id, GUID, GUID suffix, or sense id/GUID).
         return f"""{prologue}
-        replace node collection()//{entry_path}[@id="{entry_id}"]
+        replace node collection()//{entry_path}[@id="{entry_id}" or @guid="{entry_id}" or ends-with(@id, "_{entry_id}") or {sense_path}/@id="{entry_id}" or {sense_path}/@guid="{entry_id}"]
         with {entry_xml}
         """
 

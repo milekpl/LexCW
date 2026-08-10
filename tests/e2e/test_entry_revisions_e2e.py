@@ -79,7 +79,7 @@ class TestRevisionsUI:
     def _csrf_token(self, page: Page, app_url: str) -> str:
         """Get a valid CSRF token by visiting the entry form first."""
         page.goto(f"{app_url}/entries/add")
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
         return page.evaluate(
             "document.querySelector('meta[name=\"csrf-token\"]')?.getAttribute('content') || ''"
         )
@@ -125,10 +125,10 @@ class TestRevisionsUI:
 
         # Navigate to edit page and open revision panel
         page.goto(f"{app_url}/entries/{eid}/edit")
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
         # Force reload to pick up template changes
         page.reload()
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
 
         # Capture console logs
         console_msgs = []
@@ -147,7 +147,7 @@ class TestRevisionsUI:
 
         # Reload and verify both revisions appear
         page.goto(f"{app_url}/entries/{eid}/edit")
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
         page.locator('#revision-history-panel .card-header').click()
         page.wait_for_timeout(1000)
 
@@ -173,7 +173,7 @@ class TestRevisionsUI:
         assert check.ok and check.json()["total"] >= 2, f"Expected >=2, got {check.text[:200]}"
 
         page.goto(f"{app_url}/entries/{eid}/edit")
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
 
         page.locator('#revision-history-panel .card-header').click()
         page.wait_for_timeout(1000)

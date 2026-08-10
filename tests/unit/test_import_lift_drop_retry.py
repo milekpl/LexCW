@@ -36,6 +36,12 @@ class FakeAdmin:
             return ""
         return ""
 
+    def add_resource(self, path: str, content: str, db_name: str = None) -> None:
+        # initialize_database now sends LIFT content over the socket instead of
+        # asking BaseX to read a host file path (CREATE DB ... "<path>").
+        self.added_resources = getattr(self, 'added_resources', [])
+        self.added_resources.append((path, content, db_name))
+
 
 class DummyMainConnector:
     def __init__(self):

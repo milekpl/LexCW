@@ -56,7 +56,7 @@ class TestEntryFormPreview:
         assert toggle_btn is not None, "XML Preview toggle button not found"
         
         # Verify it's NOT in the main button card
-        # The main button card has "Undo" and "Save Entry"
+        # The main button card has "Undo" and the Save button
         save_btn = soup.find('button', id='save-btn')
         button_card = save_btn.find_parent('div', class_='card')
         

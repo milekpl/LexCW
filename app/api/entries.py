@@ -269,6 +269,13 @@ def get_entry(entry_id: str) -> Any:
             raise NotFoundError(f"Entry '{entry_id}' not found")
         except Exception:
             pass
+        finally:
+            _svc = locals().get('xml_service')
+            if _svc is not None:
+                try:
+                    _svc.close()
+                except Exception:
+                    pass
         dict_service = get_dictionary_service()
         entry = dict_service.get_entry(entry_id)
         if entry is None:
@@ -357,6 +364,13 @@ def create_entry() -> Any:
                     f"[XML API] Unexpected error creating XML entry via /api/entries: {e}"
                 )
                 return jsonify({"error": str(e)}), 500
+            finally:
+                _svc = locals().get('xml_service')
+                if _svc is not None:
+                    try:
+                        _svc.close()
+                    except Exception:
+                        pass
             # Clear cache after creation
             cache = CacheService()
             if cache.is_available():
@@ -533,6 +547,13 @@ def update_entry(entry_id: str) -> Any:
             logger.warning(
                 f"[SENSE UPDATE] xml_service update failed, falling back to dict_service: {e}"
             )
+        finally:
+            _svc = locals().get('xml_service')
+            if _svc is not None:
+                try:
+                    _svc.close()
+                except Exception:
+                    pass
 
         # Get existing entry BEFORE processing form data to preserve fields not in form
         existing_entry = get_dictionary_service().get_entry(entry_id)

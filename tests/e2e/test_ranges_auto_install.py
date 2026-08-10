@@ -29,7 +29,7 @@ class TestAutoInstallDefaultRanges:
         """
         # Navigate to create new entry (triggers range loading)
         page.goto(f"{app_url}/entries/add")
-        page.wait_for_load_state('networkidle')
+        page.wait_for_load_state('load')
 
         # Wait for form to load
         page.wait_for_selector('#entry-form', state='visible')
@@ -55,7 +55,7 @@ class TestAutoInstallDefaultRanges:
         """
         # Navigate to entry form
         page.goto(f"{app_url}/entries/add")
-        page.wait_for_load_state('networkidle')
+        page.wait_for_load_state('load')
 
         # Wait for form
         page.wait_for_selector('#entry-form', state='visible')
@@ -74,7 +74,7 @@ class TestAutoInstallDefaultRanges:
         """
         # Navigate to create entry
         page.goto(f"{app_url}/entries/add")
-        page.wait_for_load_state('networkidle')
+        page.wait_for_load_state('load')
 
         # Find grammatical info dropdown
         pos_select = page.locator('select[name="grammatical_info"]').first

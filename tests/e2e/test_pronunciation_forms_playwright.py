@@ -16,7 +16,7 @@ class TestPronunciationForms:
     def test_pronunciation_delete_includes_csrf(self, page: Page, app_url):
         """Trigger the client-side audio delete and assert the outgoing DELETE includes CSRF."""
         page.goto(f"{app_url}/")
-        page.wait_for_load_state('networkidle')
+        page.wait_for_load_state('load')
 
         # Ensure CSRF meta is present
         csrf_meta = page.locator('meta[name="csrf-token"]')

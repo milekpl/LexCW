@@ -112,7 +112,10 @@ def test_create_entry_with_multiple_senses(page: Page, app_url: str) -> None:
         definition_textareas.nth(2).fill(f"Third sense definition for {headword}")
 
     page.click("#save-btn", timeout=10000)
-    page.wait_for_load_state("networkidle", timeout=15000)
+    try:
+        page.wait_for_url("**/entries/**status=saved*", timeout=10000)
+    except Exception:
+        page.wait_for_load_state('load')
 
     # Get entry ID
     entry_id = None
@@ -182,7 +185,10 @@ def test_each_sense_has_all_fields(page: Page, app_url: str) -> None:
             all_gloss.nth(1).fill("Second sense gloss")
 
     page.click("#save-btn", timeout=10000)
-    page.wait_for_load_state("networkidle", timeout=15000)
+    try:
+        page.wait_for_url("**/entries/**status=saved*", timeout=10000)
+    except Exception:
+        page.wait_for_load_state('load')
 
     # Get entry ID
     entry_id = None
@@ -253,7 +259,10 @@ def test_edit_individual_senses(page: Page, app_url: str) -> None:
         definition_textareas.nth(1).fill(original_def2)
 
     page.click("#save-btn", timeout=10000)
-    page.wait_for_load_state("networkidle", timeout=15000)
+    try:
+        page.wait_for_url("**/entries/**status=saved*", timeout=10000)
+    except Exception:
+        page.wait_for_load_state('load')
 
     # Get entry ID
     entry_id = None
@@ -290,7 +299,10 @@ def test_edit_individual_senses(page: Page, app_url: str) -> None:
         definition_textareas.first.fill(updated_def1)
 
     page.click("#save-btn", timeout=10000)
-    page.wait_for_load_state("networkidle", timeout=15000)
+    try:
+        page.wait_for_url("**/entries/**status=saved*", timeout=10000)
+    except Exception:
+        page.wait_for_load_state('load')
 
     # Verify first sense updated, second sense unchanged
     entry_after = get_entry(base_url, entry_id)
@@ -358,7 +370,10 @@ def test_delete_middle_sense(page: Page, app_url: str) -> None:
         definition_textareas.nth(2).fill("Sense 3 definition")
 
     page.click("#save-btn", timeout=10000)
-    page.wait_for_load_state("networkidle", timeout=15000)
+    try:
+        page.wait_for_url("**/entries/**status=saved*", timeout=10000)
+    except Exception:
+        page.wait_for_load_state('load')
 
     # Get entry ID
     entry_id = None
@@ -394,7 +409,10 @@ def test_delete_middle_sense(page: Page, app_url: str) -> None:
             break
 
     page.click("#save-btn", timeout=10000)
-    page.wait_for_load_state("networkidle", timeout=15000)
+    try:
+        page.wait_for_url("**/entries/**status=saved*", timeout=10000)
+    except Exception:
+        page.wait_for_load_state('load')
 
     # Verify only 2 senses remain
     entry = get_entry(base_url, entry_id)
@@ -444,7 +462,10 @@ def test_reorder_senses(page: Page, app_url: str) -> None:
         definition_textareas.nth(2).fill("Third definition")
 
     page.click("#save-btn", timeout=10000)
-    page.wait_for_load_state("networkidle", timeout=15000)
+    try:
+        page.wait_for_url("**/entries/**status=saved*", timeout=10000)
+    except Exception:
+        page.wait_for_load_state('load')
 
     # Get entry ID
     entry_id = None
@@ -486,7 +507,10 @@ def test_reorder_senses(page: Page, app_url: str) -> None:
             break
 
     page.click("#save-btn", timeout=10000)
-    page.wait_for_load_state("networkidle", timeout=15000)
+    try:
+        page.wait_for_url("**/entries/**status=saved*", timeout=10000)
+    except Exception:
+        page.wait_for_load_state('load')
 
     # Verify order changed
     entry = get_entry(base_url, entry_id)
@@ -586,7 +610,10 @@ def test_multisense_roundtrip(page: Page, app_url: str) -> None:
         definition_textareas.nth(1).fill("Roundtrip sense 2")
 
     page.click("#save-btn", timeout=10000)
-    page.wait_for_load_state("networkidle", timeout=15000)
+    try:
+        page.wait_for_url("**/entries/**status=saved*", timeout=10000)
+    except Exception:
+        page.wait_for_load_state('load')
 
     # Get entry ID
     entry_id = None
@@ -605,7 +632,6 @@ def test_multisense_roundtrip(page: Page, app_url: str) -> None:
 
     # === Step 3: Verify in view page ===
     page.goto(f"{base_url}/entries/{entry_id}")
-    page.wait_for_timeout(2000)
 
     view_text = page.content()
     assert "Roundtrip sense 1" in view_text, "Sense 1 should appear in view"
@@ -632,10 +658,10 @@ def test_multisense_roundtrip(page: Page, app_url: str) -> None:
     # Without this wait, an autosave triggered by addSense (before sense[2] was
     # filled) may arrive at the server AFTER the save-button PUT, overwriting
     # the newly-saved 3-sense entry with only 2 senses.
-    page.wait_for_load_state("networkidle", timeout=10000)
+    page.wait_for_load_state("load", timeout=10000)
 
     # Use expect_response to wait for the actual PUT request to complete.
-    # wait_for_load_state("networkidle") is unreliable here because submitForm()
+    # wait_for_load_state("load") is unreliable here because submitForm()
     # is async: no HTTP request is active during WebWorker serialization, so
     # networkidle fires prematurely before the PUT is ever initiated.
     with page.expect_response(
@@ -654,7 +680,6 @@ def test_multisense_roundtrip(page: Page, app_url: str) -> None:
 
     # === Step 6: Verify in view after update ===
     page.goto(f"{base_url}/entries/{entry_id}")
-    page.wait_for_timeout(2000)
 
     view_text = page.content()
     assert "Roundtrip sense 3" in view_text, "New sense 3 should appear in view"

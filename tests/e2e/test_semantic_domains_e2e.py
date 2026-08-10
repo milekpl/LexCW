@@ -157,7 +157,10 @@ def test_select_single_semantic_domain(page: Page, app_url: str) -> None:
     select_semantic_domain(page, index=1)
 
     page.click('#save-btn', timeout=10000)
-    page.wait_for_load_state('networkidle', timeout=15000)
+    try:
+        page.wait_for_url("**/entries/**status=saved*", timeout=10000)
+    except Exception:
+        page.wait_for_load_state('load')
 
     # Get entry ID
     entry_id = None
@@ -205,7 +208,10 @@ def test_select_multiple_semantic_domains(page: Page, app_url: str) -> None:
     select_first_n_semantic_domains(page, 2)
 
     page.click('#save-btn', timeout=10000)
-    page.wait_for_load_state('networkidle', timeout=15000)
+    try:
+        page.wait_for_url("**/entries/**status=saved*", timeout=10000)
+    except Exception:
+        page.wait_for_load_state('load')
 
     # Get entry ID
     entry_id = None
@@ -252,7 +258,10 @@ def test_semantic_domain_persists_via_api(page: Page, app_url: str) -> None:
     select_semantic_domain(page, index=1)
 
     page.click('#save-btn', timeout=10000)
-    page.wait_for_load_state('networkidle', timeout=15000)
+    try:
+        page.wait_for_url("**/entries/**status=saved*", timeout=10000)
+    except Exception:
+        page.wait_for_load_state('load')
 
     # Get entry ID and verify via API
     entry_id = None
@@ -296,7 +305,10 @@ def test_semantic_domain_displays_in_view(page: Page, app_url: str) -> None:
     select_semantic_domain(page, index=1)
 
     page.click('#save-btn', timeout=10000)
-    page.wait_for_load_state('networkidle', timeout=15000)
+    try:
+        page.wait_for_url("**/entries/**status=saved*", timeout=10000)
+    except Exception:
+        page.wait_for_load_state('load')
 
     # Get entry and domain text
     entry_id = None
@@ -319,7 +331,7 @@ def test_semantic_domain_displays_in_view(page: Page, app_url: str) -> None:
         page.wait_for_selector('.sense-item', timeout=10000)
     except Exception:
         # Fallback to ensure page finished loading
-        page.wait_for_load_state('networkidle', timeout=15000)
+        page.wait_for_load_state('load', timeout=15000)
 
     body_text = page.locator('body').inner_text()
     assert domain_text in body_text, f"Domain text '{domain_text}' not found in view page"
@@ -356,7 +368,10 @@ def test_deselect_all_semantic_domains(page: Page, app_url: str) -> None:
     select_semantic_domain(page, index=1)
 
     page.click('#save-btn', timeout=10000)
-    page.wait_for_load_state('networkidle', timeout=15000)
+    try:
+        page.wait_for_url("**/entries/**status=saved*", timeout=10000)
+    except Exception:
+        page.wait_for_load_state('load')
 
     # Get entry ID
     entry_id = None
@@ -377,20 +392,20 @@ def test_deselect_all_semantic_domains(page: Page, app_url: str) -> None:
     _set_semantic_domains(page, [])
 
     # The live-preview module has a 500 ms debounce.  If the browser is already in
-    # networkidle state before the debounce fires, wait_for_load_state("networkidle")
+    # networkidle state before the debounce fires, wait_for_load_state("load")
     # returns immediately and save is clicked while the debounce-triggered live-preview
     # POST is still arriving — blocking the FormSerializer WebWorker GET on the
     # single-threaded Flask server.  Waiting >500 ms here guarantees the debounce fires
     # first and the subsequent networkidle call drains that POST before we click save.
     page.wait_for_timeout(800)
     try:
-        page.wait_for_load_state('networkidle', timeout=10000)
+        page.wait_for_load_state('load', timeout=10000)
     except Exception:
         pass  # Proceed even if networkidle times out; the 800 ms wait above already
               # guaranteed the debounce-triggered live-preview POST was dispatched.
 
     # Use expect_response to wait for the actual PUT to complete.
-    # wait_for_load_state('networkidle') alone fires prematurely because submitForm()
+    # wait_for_load_state('load') alone fires prematurely because submitForm()
     # uses async WebWorker serialization – no HTTP request is active during that phase.
     with page.expect_response(
         lambda r: f"/api/xml/entries/{entry_id}" in r.url and r.request.method == "PUT",
@@ -435,7 +450,10 @@ def test_semantic_domain_roundtrip(page: Page, app_url: str) -> None:
     select_first_n_semantic_domains(page, 2)
 
     page.click('#save-btn', timeout=10000)
-    page.wait_for_load_state('networkidle', timeout=15000)
+    try:
+        page.wait_for_url("**/entries/**status=saved*", timeout=10000)
+    except Exception:
+        page.wait_for_load_state('load')
 
     # Verify saved
     entry_id = None
@@ -466,13 +484,13 @@ def test_semantic_domain_roundtrip(page: Page, app_url: str) -> None:
     # the FormSerializer WebWorker GET on the single-threaded Flask server.
     page.wait_for_timeout(800)
     try:
-        page.wait_for_load_state('networkidle', timeout=10000)
+        page.wait_for_load_state('load', timeout=10000)
     except Exception:
         pass  # Proceed even if networkidle times out; the 800 ms wait above already
               # guaranteed the debounce-triggered live-preview POST was dispatched.
 
     # Use expect_response to wait for the actual PUT to complete.
-    # wait_for_load_state('networkidle') alone fires prematurely because submitForm()
+    # wait_for_load_state('load') alone fires prematurely because submitForm()
     # uses async WebWorker serialization – no HTTP request is active during that phase.
     with page.expect_response(
         lambda r: f"/api/xml/entries/{entry_id}" in r.url and r.request.method == "PUT",

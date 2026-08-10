@@ -22,7 +22,7 @@ class TestRangesEditorCRUD:
     def test_ranges_editor_page_loads(self, page: Page, app_url):
         """Test that the ranges editor page loads successfully."""
         page.goto(f'{app_url}/ranges-editor')
-        page.wait_for_load_state('networkidle')
+        page.wait_for_load_state('load')
 
         # Check that the page title or heading is present
         expect(page.locator('h1, h2:has-text("Ranges")')).to_be_visible(timeout=10000)
@@ -30,7 +30,7 @@ class TestRangesEditorCRUD:
     def test_ranges_list_displays(self, page: Page, app_url):
         """Test that the ranges list displays after page load."""
         page.goto(f'{app_url}/ranges-editor')
-        page.wait_for_load_state('networkidle')
+        page.wait_for_load_state('load')
 
         # Wait for ranges table to load
         table = page.locator('#rangesTable')
@@ -43,7 +43,7 @@ class TestRangesEditorCRUD:
     def test_grammatical_info_range_visible(self, page: Page, app_url):
         """Test that grammatical-info range is visible in the list."""
         page.goto(f'{app_url}/ranges-editor')
-        page.wait_for_load_state('networkidle')
+        page.wait_for_load_state('load')
 
         # Find grammatical-info row
         row = page.locator('tr[data-range-id="grammatical-info"]')
@@ -52,7 +52,7 @@ class TestRangesEditorCRUD:
     def test_domain_type_range_visible(self, page: Page, app_url):
         """Test that domain-type range is visible in the list."""
         page.goto(f'{app_url}/ranges-editor')
-        page.wait_for_load_state('networkidle')
+        page.wait_for_load_state('load')
 
         # Find domain-type row (which has hierarchical elements)
         row = page.locator('tr[data-range-id="domain-type"]')
@@ -61,7 +61,7 @@ class TestRangesEditorCRUD:
     def test_edit_range_opens_modal(self, page: Page, app_url):
         """Test that clicking edit opens the range edit modal."""
         page.goto(f'{app_url}/ranges-editor')
-        page.wait_for_load_state('networkidle')
+        page.wait_for_load_state('load')
 
         # Click edit button for grammatical-info
         edit_btn = page.locator('tr[data-range-id="grammatical-info"] button[title="Edit"]')
@@ -75,7 +75,7 @@ class TestRangesEditorCRUD:
     def test_edit_modal_shows_elements(self, page: Page, app_url):
         """Test that the edit modal shows range elements."""
         page.goto(f'{app_url}/ranges-editor')
-        page.wait_for_load_state('networkidle')
+        page.wait_for_load_state('load')
 
         # Open edit modal for grammatical-info
         edit_btn = page.locator('tr[data-range-id="grammatical-info"] button[title="Edit"]')
@@ -98,7 +98,7 @@ class TestRangesEditorCRUD:
     def test_hierarchical_elements_displayed(self, page: Page, app_url):
         """Test that hierarchical elements (like semantic-domain) display with collapsible tree."""
         page.goto(f'{app_url}/ranges-editor')
-        page.wait_for_load_state('networkidle')
+        page.wait_for_load_state('load')
 
         # Open edit modal for semantic-domain-ddp4 (has hierarchical structure)
         edit_btn = page.locator('tr[data-range-id="semantic-domain-ddp4"] button[title="Edit"]')
@@ -131,7 +131,7 @@ class TestRangesEditorCRUD:
     def test_edit_hierarchical_element(self, page: Page, app_url):
         """Test editing a nested hierarchical element works."""
         page.goto(f'{app_url}/ranges-editor')
-        page.wait_for_load_state('networkidle')
+        page.wait_for_load_state('load')
 
         # Open edit modal for semantic-domain-ddp4
         edit_btn = page.locator('tr[data-range-id="semantic-domain-ddp4"] button[title="Edit"]')
@@ -169,7 +169,7 @@ class TestRangesEditorCRUD:
     def test_create_new_range(self, page: Page, app_url):
         """Test creating a new custom range via the UI and verifying via API."""
         page.goto(f'{app_url}/ranges-editor')
-        page.wait_for_load_state('networkidle')
+        page.wait_for_load_state('load')
 
         # Click new range button
         new_range_btn = page.locator('#btnNewRange')
@@ -204,7 +204,7 @@ class TestRangesEditorCRUD:
     def test_create_element_in_range(self, page: Page, app_url):
         """Test creating a new element in a range."""
         page.goto(f'{app_url}/ranges-editor')
-        page.wait_for_load_state('networkidle')
+        page.wait_for_load_state('load')
 
         # Open edit modal for grammatical-info
         edit_btn = page.locator('tr[data-range-id="grammatical-info"] button[title="Edit"]')
@@ -257,7 +257,7 @@ class TestRangesEditorCRUD:
         """Test deleting an element from a range."""
         # First create an element to delete
         page.goto(f'{app_url}/ranges-editor')
-        page.wait_for_load_state('networkidle')
+        page.wait_for_load_state('load')
 
         # Open edit modal for grammatical-info
         edit_btn = page.locator('tr[data-range-id="grammatical-info"] button[title="Edit"]')
@@ -311,7 +311,7 @@ class TestRangesEditorCRUD:
     def test_search_ranges(self, page: Page, app_url):
         """Test searching/filtering ranges."""
         page.goto(f'{app_url}/ranges-editor')
-        page.wait_for_load_state('networkidle')
+        page.wait_for_load_state('load')
 
         # Wait for table to load
         table = page.locator('#rangesTable')
@@ -373,7 +373,7 @@ class TestRangesEditorCRUD:
     def test_collapsible_tree_starts_folded(self, page: Page, app_url):
         """Test that the tree starts with only top-level expanded, not all nodes."""
         page.goto(f'{app_url}/ranges-editor')
-        page.wait_for_load_state('networkidle')
+        page.wait_for_load_state('load')
 
         # Open semantic-domain-ddp4 (1792 elements, depth 5)
         page.locator('tr[data-range-id="semantic-domain-ddp4"] button[title="Edit"]').click()
@@ -396,7 +396,7 @@ class TestRangesEditorCRUD:
     def test_expand_collapse_toggle(self, page: Page, app_url):
         """Test that clicking a chevron toggles expand/collapse of a node."""
         page.goto(f'{app_url}/ranges-editor')
-        page.wait_for_load_state('networkidle')
+        page.wait_for_load_state('load')
 
         page.locator('tr[data-range-id="semantic-domain-ddp4"] button[title="Edit"]').click()
         expect(page.locator('#editRangeModal')).to_be_visible(timeout=5000)
@@ -434,7 +434,7 @@ class TestRangesEditorCRUD:
     def test_collapse_all_button(self, page: Page, app_url):
         """Test that the Collapse All button hides all children."""
         page.goto(f'{app_url}/ranges-editor')
-        page.wait_for_load_state('networkidle')
+        page.wait_for_load_state('load')
 
         page.locator('tr[data-range-id="semantic-domain-ddp4"] button[title="Edit"]').click()
         expect(page.locator('#editRangeModal')).to_be_visible(timeout=5000)
@@ -459,7 +459,7 @@ class TestRangesEditorCRUD:
     def test_expand_all_button(self, page: Page, app_url):
         """Test that the Expand All button expands all nodes."""
         page.goto(f'{app_url}/ranges-editor')
-        page.wait_for_load_state('networkidle')
+        page.wait_for_load_state('load')
 
         page.locator('tr[data-range-id="semantic-domain-ddp4"] button[title="Edit"]').click()
         expect(page.locator('#editRangeModal')).to_be_visible(timeout=5000)
@@ -484,7 +484,7 @@ class TestRangesEditorCRUD:
     def test_depth_indentation(self, page: Page, app_url):
         """Test that nested elements are indented based on their depth."""
         page.goto(f'{app_url}/ranges-editor')
-        page.wait_for_load_state('networkidle')
+        page.wait_for_load_state('load')
 
         page.locator('tr[data-range-id="semantic-domain-ddp4"] button[title="Edit"]').click()
         expect(page.locator('#editRangeModal')).to_be_visible(timeout=5000)

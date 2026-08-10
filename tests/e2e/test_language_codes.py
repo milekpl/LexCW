@@ -24,7 +24,7 @@ class TestLanguageCodesInXML:
 
     def test_definition_language_selector_exists(self, page, app_url):
         page.goto(f"{app_url}/entries/add", timeout=30000)
-        page.wait_for_load_state('networkidle')
+        page.wait_for_load_state('load')
 
         page.locator('#add-sense-btn').click()
         page.wait_for_timeout(500)
@@ -35,7 +35,7 @@ class TestLanguageCodesInXML:
 
     def test_example_sentence_has_language_selector(self, page, app_url):
         page.goto(f"{app_url}/entries/add", timeout=30000)
-        page.wait_for_load_state('networkidle')
+        page.wait_for_load_state('load')
 
         page.locator('#add-sense-btn').click()
         page.wait_for_timeout(500)
@@ -49,7 +49,7 @@ class TestLanguageCodesInXML:
 
     def test_translation_has_language_selector(self, page, app_url):
         page.goto(f"{app_url}/entries/add", timeout=30000)
-        page.wait_for_load_state('networkidle')
+        page.wait_for_load_state('load')
 
         page.locator('#add-sense-btn').click()
         page.wait_for_timeout(500)
@@ -63,7 +63,7 @@ class TestLanguageCodesInXML:
 
     def test_add_gloss_language_button_works(self, page, app_url):
         page.goto(f"{app_url}/entries/add", timeout=30000)
-        page.wait_for_load_state('networkidle')
+        page.wait_for_load_state('load')
 
         page.locator('#add-sense-btn').click()
         page.wait_for_timeout(500)
@@ -84,7 +84,7 @@ class TestLanguageCodesInXML:
 
     def test_generated_xml_contains_correct_languages(self, page, app_url):
         page.goto(f"{app_url}/entries/add", timeout=30000)
-        page.wait_for_load_state('networkidle')
+        page.wait_for_load_state('load')
 
         page.locator('input.lexical-unit-text').first.fill('lang-test-word')
         page.locator('#add-sense-btn').click()
@@ -108,7 +108,10 @@ class TestLanguageCodesInXML:
                     page.wait_for_timeout(300)
 
         page.click('#save-btn')
-        page.wait_for_load_state('networkidle')
+        try:
+            page.wait_for_url("**/entries/**status=saved*", timeout=10000)
+        except Exception:
+            page.wait_for_load_state('load')
 
         # Verify save succeeded — should redirect to view/edit page
         current_url = page.url

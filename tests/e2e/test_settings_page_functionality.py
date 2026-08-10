@@ -88,7 +88,7 @@ class TestSettingsPageUX:
         submit_button.click()
         
         # Wait for response / navigation to complete
-        page.wait_for_load_state('networkidle')
+        page.wait_for_load_state('load')
         
         # Should not show error page
         expect(page).not_to_have_title(re.compile(r"Error|500|404"))

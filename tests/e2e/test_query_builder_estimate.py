@@ -11,7 +11,7 @@ class TestQueryBuilderEstimate:
     def test_validate_updates_estimate_display(self, page: Page, app_url: str):
         """Set up a simple filter, click Validate, verify the display updates."""
         page.goto(f"{app_url}/workbench/query-builder")
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
 
         # Set operator to "contains" on the default lexical_unit filter
         operator_select = page.locator(".operator-select").first
@@ -32,7 +32,7 @@ class TestQueryBuilderEstimate:
     def test_preview_shows_toast_message(self, page: Page, app_url: str):
         """Preview must show a success/error toast, not crash."""
         page.goto(f"{app_url}/workbench/query-builder")
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
 
         operator_select = page.locator(".operator-select").first
         operator_select.select_option("contains")
@@ -49,7 +49,7 @@ class TestQueryBuilderEstimate:
     def test_validate_button_is_clickable(self, page: Page, app_url: str):
         """Validate button exists and is clickable."""
         page.goto(f"{app_url}/workbench/query-builder")
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
 
         btn = page.locator("#validate-query-btn")
         expect(btn).to_be_visible()
@@ -63,7 +63,7 @@ class TestWorksetCurationLoads:
     def test_curation_page_loads_without_500(self, page: Page, app_url: str):
         """Navigate to a workset curation page and verify it doesn't 500."""
         page.goto(f"{app_url}/workbench/worksets")
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
 
         cards = page.locator(".workset-card")
         if cards.count() == 0:
@@ -82,7 +82,7 @@ class TestWorksetCurationLoads:
             else:
                 pytest.skip("No curation link found")
 
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
         page.wait_for_timeout(2000)
 
         # The page should render — either showing entry, or "Workset is empty"

@@ -11,7 +11,7 @@ class TestFieldVisibilityModalE2E:
     def test_modal_opens(self, page, app_url):
         """Test that the field visibility modal opens."""
         page.goto(f'{app_url}/entries/add')
-        page.wait_for_load_state('networkidle')
+        page.wait_for_load_state('load')
 
         # Click the field settings button
         page.click('[data-bs-toggle="modal"][data-bs-target="#fieldVisibilityModal"]')
@@ -26,7 +26,7 @@ class TestFieldVisibilityModalE2E:
     def test_all_sections_visible_in_modal(self, page, app_url):
         """Test that all sections are visible in the modal."""
         page.goto(f'{app_url}/entries/add')
-        page.wait_for_load_state('networkidle')
+        page.wait_for_load_state('load')
 
         # Open modal
         page.click('[data-bs-toggle="modal"][data-bs-target="#fieldVisibilityModal"]')
@@ -54,7 +54,7 @@ class TestFieldVisibilityModalE2E:
     def test_toggle_section_visibility(self, page, app_url):
         """Test toggling a section's visibility using the FieldVisibilityManager."""
         page.goto(f'{app_url}/entries/add')
-        page.wait_for_load_state('networkidle')
+        page.wait_for_load_state('load')
 
         # Test the manager's toggle method directly
         # Toggle custom-fields section
@@ -73,7 +73,7 @@ class TestFieldVisibilityModalE2E:
     def test_reset_to_defaults(self, page, app_url):
         """Test resetting visibility settings to defaults."""
         page.goto(f'{app_url}/entries/add')
-        page.wait_for_load_state('networkidle')
+        page.wait_for_load_state('load')
 
         # Open modal
         page.click('[data-bs-toggle="modal"][data-bs-target="#fieldVisibilityModal"]')
@@ -94,7 +94,7 @@ class TestFieldVisibilityModalE2E:
     def test_show_all_sections(self, page, app_url):
         """Test showing all sections."""
         page.goto(f'{app_url}/entries/add')
-        page.wait_for_load_state('networkidle')
+        page.wait_for_load_state('load')
 
         # Open modal
         page.click('[data-bs-toggle="modal"][data-bs-target="#fieldVisibilityModal"]')
@@ -112,7 +112,7 @@ class TestFieldVisibilityModalE2E:
     def test_hide_empty_sections(self, page, app_url):
         """Test hiding empty sections."""
         page.goto(f'{app_url}/entries/add')
-        page.wait_for_load_state('networkidle')
+        page.wait_for_load_state('load')
 
         # Open modal
         page.click('[data-bs-toggle="modal"][data-bs-target="#fieldVisibilityModal"]')
@@ -126,7 +126,7 @@ class TestFieldVisibilityModalE2E:
     def test_close_modal(self, page, app_url):
         """Test closing the modal."""
         page.goto(f'{app_url}/entries/add')
-        page.wait_for_load_state('networkidle')
+        page.wait_for_load_state('load')
 
         # Open modal
         page.click('[data-bs-toggle="modal"][data-bs-target="#fieldVisibilityModal"]')
@@ -146,7 +146,7 @@ class TestFieldVisibilityModalE2E:
     def test_field_visibility_manager_initialized(self, page, app_url):
         """Test that FieldVisibilityManager is initialized."""
         page.goto(f'{app_url}/entries/add')
-        page.wait_for_load_state('networkidle')
+        page.wait_for_load_state('load')
 
         # Check that the manager is available on window
         manager_exists = page.evaluate('typeof window.fieldVisibilityManager !== "undefined"')
@@ -159,7 +159,7 @@ class TestFieldVisibilityModalE2E:
     def test_get_settings(self, page, app_url):
         """Test getting current visibility settings."""
         page.goto(f'{app_url}/entries/add')
-        page.wait_for_load_state('networkidle')
+        page.wait_for_load_state('load')
 
         # Get settings from manager
         settings = page.evaluate('window.fieldVisibilityManager.getSettings()')
@@ -176,7 +176,7 @@ class TestFieldVisibilityModalE2E:
     def test_toggle_method(self, page, app_url):
         """Test the toggle method."""
         page.goto(f'{app_url}/entries/add')
-        page.wait_for_load_state('networkidle')
+        page.wait_for_load_state('load')
 
         # Toggle a section
         new_state = page.evaluate(
@@ -199,7 +199,7 @@ class TestFieldVisibilityModalE2E:
     def test_custom_event_fired(self, page, app_url):
         """Test that CustomEvent is fired on visibility change."""
         page.goto(f'{app_url}/entries/add')
-        page.wait_for_load_state('networkidle')
+        page.wait_for_load_state('load')
 
         # Set up event listener
         event_fired = []

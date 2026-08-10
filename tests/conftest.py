@@ -1,5 +1,4 @@
 import pytest
-import uuid
 import tempfile
 import os
 import sys
@@ -61,6 +60,20 @@ def basex_available() -> bool:
     except Exception as e:
         logger.warning(f"BaseX server not available: {e}")
         return False
+
+
+@pytest.fixture(scope="session", autouse=True)
+def basex_server():
+    """Session-autouse: BaseX running on a ramdisk (/dev/shm) for the whole suite.
+
+    Keeps every database/index write in memory and starts once per session.
+    Reuses an already-running BaseX (e.g. the dev server) when present.
+    """
+    from tests.basex_test_utils import basex_server_context
+    with basex_server_context() as started:
+        if started:
+            logger.info("Started in-memory BaseX server for test session")
+        yield
 
 
 @pytest.fixture(scope="function")
@@ -305,85 +318,9 @@ def basex_test_connector(basex_available: bool, test_db_name: str):
                 pass
 
 
-@pytest.fixture(scope="function")
-def isolated_basex_connector(safe_test_db_name: str, basex_available: bool, request):
-    """
-    Create a completely isolated BaseX connector with safe cleanup.
-    
-    This fixture provides stronger isolation guarantees than basex_test_connector:
-    - Uses safe database naming with timestamp and test type
-    - Validates database name safety before creation
-    - Restores original environment variables after test
-    - Performs atomic cleanup with verification
-    - Prevents environment variable leakage between tests
-    """
-    if not basex_available:
-        pytest.skip("BaseX server not available")
-
-    from app.database.basex_connector import BaseXConnector
-
-    # Store original environment variables for restoration
-    original_test_db = os.environ.get('TEST_DB_NAME')
-    original_basex_db = os.environ.get('BASEX_DATABASE')
-    
-    connector = BaseXConnector(
-        host=os.getenv('BASEX_HOST', 'localhost'),
-        port=int(os.getenv('BASEX_PORT', '1984')),
-        username=os.getenv('BASEX_USERNAME', 'admin'),
-        password=os.getenv('BASEX_PASSWORD', 'admin'),
-        database=None,
-    )
-    
-    try:
-        # Set isolated environment for this test only
-        os.environ['TEST_DB_NAME'] = safe_test_db_name
-        os.environ['BASEX_DATABASE'] = safe_test_db_name
-        
-        # Connect and create database (retry with unique suffix if DB is in use)
-        connector.connect()
-        chosen_db = safe_test_db_name
-        max_attempts = 3
-        from app.utils.exceptions import DatabaseError
-        for attempt in range(1, max_attempts + 1):
-            try:
-                connector.create_database(chosen_db)
-                break
-            except Exception as e:  # Be tolerant and try alternate name on typical collisions
-                err_text = str(e)
-                logger.warning(f"Attempt {attempt} to create DB {chosen_db} failed: {err_text}")
-                # If DB is opened by another process or already exists in a conflicting state,
-                # try a new name with a short random suffix to avoid collision.
-                if 'opened by another process' in err_text or 'already exists' in err_text.lower():
-                    chosen_db = f"{safe_test_db_name}_{uuid.uuid4().hex[:6]}"
-                    # update env vars so subsequent operations use the tentative name
-                    os.environ['TEST_DB_NAME'] = chosen_db
-                    os.environ['BASEX_DATABASE'] = chosen_db
-                    # wait briefly before retrying to allow transient locks to clear
-                    time.sleep(0.2)
-                    connector = BaseXConnector(
-                        host=os.getenv('BASEX_HOST', 'localhost'),
-                        port=int(os.getenv('BASEX_PORT', '1984')),
-                        username=os.getenv('BASEX_USERNAME', 'admin'),
-                        password=os.getenv('BASEX_PASSWORD', 'admin'),
-                        database=None,
-                    )
-                    connector.connect()
-                    continue
-                # otherwise, propagate the unexpected error
-                raise
-        else:
-            raise DatabaseError(f"Failed to create an isolated test database after {max_attempts} attempts")
-
-        # Use the chosen database name going forward and ensure connector uses it
-        connector.database = chosen_db
-        connector.disconnect()
-        connector.connect()  # Reconnect with database
-        
-        logger.info(f"Created isolated test database: {chosen_db}")
-        
-        # Add sample LIFT content
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.xml', delete=False, encoding='utf-8') as f:
-            sample_lift = '''<?xml version="1.0" encoding="UTF-8"?>
+# Gold content for the shared unit BaseX DB — same data the old per-test
+# isolation fixture seeded, so existing tests see identical content.
+UNIT_ISOLATED_SAMPLE_LIFT = '''<?xml version="1.0" encoding="UTF-8"?>
 <lift version="0.13" xmlns="http://fieldworks.sil.org/schemas/lift/0.13">
     <entry id="test_entry_1">
         <lexical-unit>
@@ -397,23 +334,8 @@ def isolated_basex_connector(safe_test_db_name: str, basex_available: bool, requ
         </sense>
     </entry>
 </lift>'''
-            f.write(sample_lift)
-            temp_file = f.name
-        
-        try:
-            connector.execute_command(f"ADD {temp_file}")
-            logger.info("Added LIFT data to isolated test database")
-        except Exception as e:
-            logger.warning(f"Failed to add data to isolated database: {e}")
-        finally:
-            try:
-                os.unlink(temp_file)
-            except OSError:
-                pass
-        
-        # Add minimal ranges.xml
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.xml', delete=False, encoding='utf-8') as f:
-            ranges_xml = '''<?xml version="1.0" encoding="UTF-8"?>
+
+UNIT_ISOLATED_RANGES_XML = '''<?xml version="1.0" encoding="UTF-8"?>
 <lift-ranges>
     <range id="grammatical-info">
         <range-element id="Noun" label="Noun" abbrev="n"/>
@@ -424,68 +346,114 @@ def isolated_basex_connector(safe_test_db_name: str, basex_available: bool, requ
         <range-element id="antonym" label="Antonym"/>
     </range>
 </lift-ranges>'''
-            f.write(ranges_xml)
-            temp_file = f.name
-        
+
+
+@pytest.fixture(scope="session")
+def unit_shared_basex_db(basex_server) -> str:
+    """Session-scoped gold BaseX DB backing ``isolated_basex_connector``.
+
+    Created once with the same seed data the old per-test isolation fixture
+    used; per-test isolation is achieved by resetting it with fast XQuery
+    updates instead of DROP/CREATE (which re-ran the disk indexer per test).
+    """
+    from tests.basex_test_utils import _admin_connector, _basex_reachable
+
+    if not _basex_reachable(int(os.getenv('BASEX_PORT', '1984'))):
+        pytest.skip("BaseX server not available")
+
+    db_name = generate_safe_db_name(test_type="unit")
+    admin = _admin_connector()
+    try:
+        admin.connect()
         try:
-            connector.execute_command(f"ADD {temp_file}")
-            logger.info("Added ranges.xml to isolated test database")
-        except Exception as e:
-            logger.warning(f"Failed to add ranges.xml to isolated database: {e}")
+            admin.execute_command(f"DROP DB {db_name}")
+        except Exception:
+            pass
+        admin.create_database(db_name)
+        admin.add_resource("sample_lift.xml", UNIT_ISOLATED_SAMPLE_LIFT, db_name=db_name)
+        admin.add_resource("ranges.xml", UNIT_ISOLATED_RANGES_XML, db_name=db_name)
+        admin.disconnect()
+        logger.info("Pre-built unit BaseX database: %s", db_name)
+        yield db_name
+    finally:
+        try:
+            admin.connect()
+            try:
+                admin.execute_command(f"DROP DB {db_name}")
+            except Exception:
+                pass
         finally:
             try:
-                os.unlink(temp_file)
-            except OSError:
+                admin.disconnect()
+            except Exception:
                 pass
-        
+
+
+@pytest.fixture(scope="function")
+def isolated_basex_connector(unit_shared_basex_db: str, basex_available: bool, request):
+    """Isolated BaseX connector backed by the shared pre-built gold DB.
+
+    Isolation is achieved by resetting the shared DB to gold state with fast
+    XQuery updates before each test (the old fixture DROPPED and re-CREATEd a
+    DB per test, re-running the disk indexer every time).
+
+    - Restores original environment variables after test
+    - Prevents environment variable leakage between tests
+    """
+    if not basex_available:
+        pytest.skip("BaseX server not available")
+
+    from app.database.basex_connector import BaseXConnector
+    from tests.basex_test_utils import reset_basex_database
+
+    # Store original environment variables for restoration
+    original_test_db = os.environ.get('TEST_DB_NAME')
+    original_basex_db = os.environ.get('BASEX_DATABASE')
+
+    db_name = unit_shared_basex_db
+
+    # Set isolated environment for this test only
+    os.environ['TEST_DB_NAME'] = db_name
+    os.environ['BASEX_DATABASE'] = db_name
+
+    # Reset the gold DB to pristine state (no DROP/CREATE — the DB stays open)
+    reset_basex_database(db_name, [
+        ("sample_lift.xml", UNIT_ISOLATED_SAMPLE_LIFT),
+        ("ranges.xml", UNIT_ISOLATED_RANGES_XML),
+    ])
+
+    connector = BaseXConnector(
+        host=os.getenv('BASEX_HOST', 'localhost'),
+        port=int(os.getenv('BASEX_PORT', '1984')),
+        username=os.getenv('BASEX_USERNAME', 'admin'),
+        password=os.getenv('BASEX_PASSWORD', 'admin'),
+        database=None,
+    )
+
+    try:
+        connector.connect()
+        connector.database = db_name
+        connector.disconnect()
+        connector.connect()  # Reconnect with the database open
+        logger.info("Reset shared BaseX DB %s for isolated test %s", db_name, request.node.name)
         yield connector
-        
     finally:
-        # Safe cleanup with environment restoration
+        # Restore original environment variables (the DB itself is
+        # session-scoped and dropped by unit_shared_basex_db at session end)
+        if original_test_db:
+            os.environ['TEST_DB_NAME'] = original_test_db
+        elif 'TEST_DB_NAME' in os.environ:
+            del os.environ['TEST_DB_NAME']
+
+        if original_basex_db:
+            os.environ['BASEX_DATABASE'] = original_basex_db
+        elif 'BASEX_DATABASE' in os.environ:
+            del os.environ['BASEX_DATABASE']
+
         try:
-            # Restore original environment variables
-            if original_test_db:
-                os.environ['TEST_DB_NAME'] = original_test_db
-            elif 'TEST_DB_NAME' in os.environ:
-                del os.environ['TEST_DB_NAME']
-                
-            if original_basex_db:
-                os.environ['BASEX_DATABASE'] = original_basex_db
-            elif 'BASEX_DATABASE' in os.environ:
-                del os.environ['BASEX_DATABASE']
-            
-            # Atomic cleanup with verification
-            cleanup_connector = BaseXConnector(
-                host=os.getenv('BASEX_HOST', 'localhost'),
-                port=int(os.getenv('BASEX_PORT', '1984')),
-                username=os.getenv('BASEX_USERNAME', 'admin'),
-                password=os.getenv('BASEX_PASSWORD', 'admin'),
-                database=None,
-            )
-            
-            try:
-                cleanup_connector.connect()
-                # Verify database exists before dropping
-                try:
-                    result = cleanup_connector.execute_query("xquery db:list()")
-                    if safe_test_db_name in result:
-                        cleanup_connector.execute_command(f"DROP DB {safe_test_db_name}")
-                        logger.info(f"Successfully dropped isolated test database: {safe_test_db_name}")
-                    else:
-                        logger.warning(f"Isolated test database {safe_test_db_name} not found during cleanup")
-                except Exception as e:
-                    logger.warning(f"Could not verify database existence before cleanup: {e}")
-                
-            finally:
-                try:
-                    cleanup_connector.disconnect()
-                except Exception:
-                    pass
-                    
-        except Exception as e:
-            logger.error(f"Failed to clean up isolated test database {safe_test_db_name}: {e}")
-            # Even if cleanup fails, we've restored the environment variables
-            raise
+            connector.disconnect()
+        except Exception:
+            pass
 
 
 @pytest.fixture(scope="function")
@@ -595,7 +563,10 @@ def flask_test_server():
             project_id = settings.id
             # Commit is handled by create_settings
 
-    server = make_server('localhost', port, app)
+    # Threaded server: browser/parallel test clients open several connections
+    # per host; the single-threaded default overflows the request backlog and
+    # resets connections (net::ERR_ABORTED) — a source of test flakes.
+    server = make_server('localhost', port, app, threaded=True)
     thread = None
     try:
         import threading

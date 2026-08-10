@@ -1,4 +1,5 @@
 import pytest
+from unittest.mock import MagicMock, patch
 
 
 from app.parsers.lift_parser import LIFTParser
@@ -35,8 +36,18 @@ def test_rejects_xxe_in_enhanced_lift_parser() -> None:
 
 
 def test_rejects_xxe_in_xml_entry_service() -> None:
-    # Service constructor uses BaseXClient session lazily; validation happens
-    # before any DB call.
-    service = XMLEntryService()
-    with pytest.raises(InvalidXMLError):
-        service._validate_lift_xml(XXE_PAYLOAD)
+    # The service constructor probes the BaseX database for namespace usage
+    # (_detect_namespace_usage) — that is integration behavior. Stub the BaseX
+    # session so this stays a pure unit test (same pattern as
+    # tests/unit/test_xml_entry_service.py).
+    with patch('app.services.xml_entry_service.BaseXClient.Session') as mock_session_class:
+        detection_query_mock = MagicMock()
+        detection_query_mock.execute.return_value = 'true'
+        detection_query_mock.close.return_value = None
+        mock_session = MagicMock()
+        mock_session.query.return_value = detection_query_mock
+        mock_session_class.return_value = mock_session
+
+        service = XMLEntryService()
+        with pytest.raises(InvalidXMLError):
+            service._validate_lift_xml(XXE_PAYLOAD)

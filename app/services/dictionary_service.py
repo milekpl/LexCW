@@ -407,16 +407,26 @@ class DictionaryService:
             
             # Create the database from the LIFT file
             self.logger.info("Creating new database '%s' from %s", db_name, lift_path)
-            # Use forward slashes for paths in BaseX commands
-            lift_path_basex = os.path.abspath(lift_path).replace("\\", "/")
-            self.logger.info("Using absolute path: %s", lift_path_basex)
-            
+            # Read the file content in-process and send it over the socket.
+            # `CREATE DB <name> "<path>"` makes BaseX read the path from ITS OWN
+            # filesystem, which breaks whenever BaseX runs as a separate process
+            # (Docker container, sandboxed CI runner, WSL) that cannot see this
+            # process's temp files — the same fragility the e2e conftest
+            # documents ("Use add_resource() instead of execute_command('ADD ...')").
+            with open(lift_path, 'rb') as _lift_file:
+                _lift_bytes = _lift_file.read()
+            try:
+                lift_content = _lift_bytes.decode('utf-8-sig')  # strips a UTF-8 BOM
+            except UnicodeDecodeError:
+                # Byte-preserving fallback for LIFT files declaring a legacy
+                # encoding (latin-1 <-> UTF-8 round-trip preserves bytes).
+                lift_content = _lift_bytes.decode('latin-1')
+
             # Use admin connector to create the database
             admin_connector.connect()
             try:
-                admin_connector.execute_command(
-                    f'CREATE DB {db_name} "{lift_path_basex}"'
-                )
+                admin_connector.execute_command(f"CREATE DB {db_name}")
+                admin_connector.add_resource("lift.xml", lift_content, db_name=db_name)
             finally:
                 admin_connector.disconnect()
 

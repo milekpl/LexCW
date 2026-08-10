@@ -22,8 +22,6 @@ def _perform_search_via_api(page, app_url, query, pos=""):
     if pos:
         params += f"&pos={pos}"
     page.goto(f"{app_url}/search?{params}")
-    page.wait_for_load_state("networkidle")
-    page.wait_for_timeout(2000)
 
 
 class TestFacetedSearch:
@@ -49,7 +47,6 @@ class TestFacetedSearch:
         _perform_search_via_api(page, app_url, "a")
         noun_facet = page.locator(".facet-value[data-facet-value='Noun']")
         noun_facet.click()
-        page.wait_for_timeout(2000)
 
         result_count = page.locator("#results-count")
         expect(result_count).to_contain_text("2 results")
@@ -59,7 +56,6 @@ class TestFacetedSearch:
         _perform_search_via_api(page, app_url, "a")
         noun_facet = page.locator(".facet-value[data-facet-value='Noun']")
         noun_facet.click()
-        page.wait_for_timeout(2000)
 
         active_filter = page.locator("#active-filters .active-filter")
         expect(active_filter).to_be_visible()
@@ -69,11 +65,9 @@ class TestFacetedSearch:
         _perform_search_via_api(page, app_url, "a")
         noun_facet = page.locator(".facet-value[data-facet-value='Noun']")
         noun_facet.click()
-        page.wait_for_timeout(2000)
 
         remove_btn = page.locator("#active-filters .active-filter .remove-facet")
         remove_btn.click()
-        page.wait_for_timeout(2000)
 
         result_count = page.locator("#results-count")
         expect(result_count).to_contain_text("3 results")
@@ -94,7 +88,6 @@ class TestSearchWithinResults:
         within_input = page.locator("#search-within-results")
         within_input.fill("dog")
         within_input.press("Enter")
-        page.wait_for_timeout(1000)
 
         visible_results = page.locator(".search-result")
         expect(visible_results).to_have_count(1)
@@ -105,10 +98,8 @@ class TestSearchWithinResults:
         within_input = page.locator("#search-within-results")
         within_input.fill("dog")
         within_input.press("Enter")
-        page.wait_for_timeout(500)
         within_input.clear()
         within_input.press("Enter")
-        page.wait_for_timeout(500)
 
         visible_results = page.locator(".search-result")
         expect(visible_results).to_have_count(3)

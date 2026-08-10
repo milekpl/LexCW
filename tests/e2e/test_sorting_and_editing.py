@@ -267,7 +267,7 @@ def test_date_modified_sorting_ascending(page: Page, flask_test_server):
     last_modified_header.click()
     
     # Wait for sorting to complete and data to load
-    time.sleep(2)
+    time.sleep(0.5)
     page.wait_for_selector("tbody#entries-list tr[data-entry-id]", timeout=10000)
     
     # Wait for JavaScript to finish rendering entries (check that rows have been populated)
@@ -276,7 +276,7 @@ def test_date_modified_sorting_ascending(page: Page, flask_test_server):
         "document.querySelectorAll('tbody#entries-list tr[data-entry-id] td[data-column-id]').length > 0",
         timeout=10000
     )
-    time.sleep(1)  # Additional wait for date formatting
+    time.sleep(0.5)  # Short wait for date formatting to settle
     
     # Get all date cells in the Last Modified column (using data-column-id set by JavaScript)
     date_cells = page.locator("tbody#entries-list tr[data-entry-id] td[data-column-id='date_modified']")
@@ -360,7 +360,7 @@ def test_date_modified_sorting_descending(page: Page, flask_test_server):
     last_modified_header.click()  # Second click - descending
     
     # Wait for sorting to complete and data to load
-    time.sleep(3)
+    time.sleep(1)
     page.wait_for_selector("tbody#entries-list tr[data-entry-id]", timeout=10000)
     
     # Wait for JavaScript to finish rendering entries
@@ -546,7 +546,7 @@ def test_entry_editing_save_functionality(page: Page, flask_test_server):
         # Navigation may not have occurred, try direct navigation
         print("Navigation wait timed out, attempting direct navigation...")
         page.goto(f"{base_url}/entries/{entry_id}/edit")
-        page.wait_for_load_state("networkidle", timeout=5000)
+        page.wait_for_load_state("load", timeout=5000)
     
     # Get original value
     lexical_unit_field = page.locator("input.lexical-unit-text").first
@@ -564,7 +564,7 @@ def test_entry_editing_save_functionality(page: Page, flask_test_server):
     expect(save_button).to_be_visible()
     
     # Wait for any async validation to complete before clicking
-    time.sleep(1)
+    time.sleep(0.3)
     
     save_button.click()
     
@@ -630,7 +630,7 @@ def test_multiple_entries_sorting_consistency(page: Page, flask_test_server):
         
         # Click to sort
         last_modified_header.click()
-        time.sleep(2)
+        time.sleep(0.5)
         
         # Verify table still has data
         rows = page.locator("tbody tr")

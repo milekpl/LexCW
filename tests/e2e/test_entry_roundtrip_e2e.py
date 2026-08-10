@@ -81,15 +81,12 @@ def test_compound_form_components_roundtrip(page: Page, app_url: str) -> None:
     # Add a sense with definition
     if page.locator('textarea.definition-text:visible').count() == 0:
         page.click('#add-first-sense-btn')
-        for _ in range(50):
-            if page.locator('textarea.definition-text:visible').count() > 0:
-                break
-            page.wait_for_timeout(100)
+        page.wait_for_selector('textarea.definition-text:visible', timeout=5000)
     page.locator('textarea.definition-text:visible').first.fill(f"{component1_name} definition")
 
     # Save the entry
     page.click('#save-btn', timeout=10000)
-    page.wait_for_load_state('networkidle', timeout=15000)
+    page.wait_for_url("**/entries/**status=saved*", timeout=15000)
 
     # Get the component1 ID via search
     component1_id = None
@@ -109,13 +106,10 @@ def test_compound_form_components_roundtrip(page: Page, app_url: str) -> None:
 
     if page.locator('textarea.definition-text:visible').count() == 0:
         page.click('#add-first-sense-btn')
-        for _ in range(50):
-            if page.locator('textarea.definition-text:visible').count() > 0:
-                break
-            page.wait_for_timeout(100)
+        page.wait_for_selector('textarea.definition-text:visible', timeout=5000)
     page.locator('textarea.definition-text:visible').first.fill(f"{component2_name} definition")
     page.click('#save-btn', timeout=10000)
-    page.wait_for_load_state('networkidle')
+    page.wait_for_url("**/entries/**status=saved*", timeout=15000)
 
     component2_id = None
     for _ in range(20):
@@ -137,10 +131,7 @@ def test_compound_form_components_roundtrip(page: Page, app_url: str) -> None:
     # Add a sense
     if page.locator('textarea.definition-text:visible').count() == 0:
         page.click('#add-first-sense-btn')
-        for _ in range(50):
-            if page.locator('textarea.definition-text:visible').count() > 0:
-                break
-            page.wait_for_timeout(100)
+        page.wait_for_selector('textarea.definition-text:visible', timeout=5000)
     page.locator('textarea.definition-text:visible').first.fill(f"{compound_name} definition")
 
     # Add first component - need to select component type first using JavaScript for Select2
@@ -164,7 +155,10 @@ def test_compound_form_components_roundtrip(page: Page, app_url: str) -> None:
 
     page.fill('#component-search-input', component1_name)
     page.click('#component-search-btn')
-    page.wait_for_timeout(1000)
+    try:
+        page.wait_for_selector('#component-search-results .search-result-item:not(.create-entry-option)', timeout=5000)
+    except Exception:
+        pass  # tolerant: the debug dump below shows what happened
 
     # Debug: Check if search results appeared
     search_results_count = page.evaluate('''() => {
@@ -208,7 +202,7 @@ def test_compound_form_components_roundtrip(page: Page, app_url: str) -> None:
         }
     }''')
     print(f'DEBUG: Component addition result: {result}')
-    page.wait_for_timeout(300)
+    page.wait_for_function("() => (window.componentSearchHandler?.selectedComponents || []).length >= 1")
 
     # Debug: Check if component was added
     selected_count_after = page.evaluate('''() => {
@@ -236,7 +230,10 @@ def test_compound_form_components_roundtrip(page: Page, app_url: str) -> None:
     }''')
     page.fill('#component-search-input', component2_name)
     page.click('#component-search-btn')
-    page.wait_for_timeout(1000)
+    try:
+        page.wait_for_selector('#component-search-results .search-result-item:not(.create-entry-option)', timeout=5000)
+    except Exception:
+        pass  # tolerant: the debug dump below shows what happened
 
     # Select second result using the handler directly
     result2 = page.evaluate('''() => {
@@ -272,7 +269,7 @@ def test_compound_form_components_roundtrip(page: Page, app_url: str) -> None:
         }
     }''')
     print(f'DEBUG: Component 2 addition result: {result2}')
-    page.wait_for_timeout(300)
+    page.wait_for_function("() => (window.componentSearchHandler?.selectedComponents || []).length >= 2")
 
     # Debug: Check final state
     final_state = page.evaluate('''() => {
@@ -283,7 +280,7 @@ def test_compound_form_components_roundtrip(page: Page, app_url: str) -> None:
 
     # Save the compound entry
     page.click('#save-btn', timeout=10000)
-    page.wait_for_load_state('networkidle', timeout=15000)
+    page.wait_for_url("**/entries/**status=saved*", timeout=15000)
 
     # === Step 3: Get compound entry ID ===
     compound_id = None
@@ -323,7 +320,6 @@ def test_compound_form_components_roundtrip(page: Page, app_url: str) -> None:
 
     # === Step 6: Verify in view page ===
     page.goto(f"{base_url}/entries/{compound_id}")
-    page.wait_for_timeout(2000)  # Wait for page load
 
     # Check Main Entries (Components) section
     view_text = page.content()
@@ -334,7 +330,6 @@ def test_compound_form_components_roundtrip(page: Page, app_url: str) -> None:
 
     # === Step 7: Verify subentries on component pages ===
     page.goto(f"{base_url}/entries/{component1_id}")
-    page.wait_for_timeout(2000)
 
     view_text = page.content()
     assert compound_name in view_text or compound_id in view_text, \
@@ -363,13 +358,10 @@ def test_related_words_show_headwords_not_ids(page: Page, app_url: str) -> None:
 
     if page.locator('textarea.definition-text:visible').count() == 0:
         page.click('#add-first-sense-btn')
-        for _ in range(50):
-            if page.locator('textarea.definition-text:visible').count() > 0:
-                break
-            page.wait_for_timeout(100)
+        page.wait_for_selector('textarea.definition-text:visible', timeout=5000)
     page.locator('textarea.definition-text:visible').first.fill(f"{entry_a_name} definition")
     page.click('#save-btn')
-    page.wait_for_load_state('networkidle')
+    page.wait_for_url("**/entries/**status=saved*", timeout=15000)
 
     entry_a_id = None
     for _ in range(20):
@@ -388,10 +380,7 @@ def test_related_words_show_headwords_not_ids(page: Page, app_url: str) -> None:
 
     if page.locator('textarea.definition-text:visible').count() == 0:
         page.click('#add-first-sense-btn')
-        for _ in range(50):
-            if page.locator('textarea.definition-text:visible').count() > 0:
-                break
-            page.wait_for_timeout(100)
+        page.wait_for_selector('textarea.definition-text:visible', timeout=5000)
     page.locator('textarea.definition-text:visible').first.fill(f"{entry_b_name} definition")
 
     # Add relation to entry A via the Alpine entry-relations component.
@@ -407,11 +396,11 @@ def test_related_words_show_headwords_not_ids(page: Page, app_url: str) -> None:
     if rel_type:
         page.locator('.relation-item .lexical-relation-select').first.select_option(rel_type)
     page.locator('.relation-item input[type="text"]').first.fill(entry_a_id)
-    page.wait_for_timeout(300)
+    page.wait_for_function("() => { const s = document.querySelector('.relation-item .lexical-relation-select'); return s && s.value !== ''; }")
 
     # Save
     page.click('#save-btn')
-    page.wait_for_load_state('networkidle')
+    page.wait_for_url("**/entries/**status=saved*", timeout=15000)
 
     entry_b_id = None
     for _ in range(20):
@@ -432,7 +421,6 @@ def test_related_words_show_headwords_not_ids(page: Page, app_url: str) -> None:
 
     # === Step 4: Verify view page shows headword, not UUID ===
     page.goto(f"{base_url}/entries/{entry_b_id}")
-    page.wait_for_timeout(2000)
 
     view_text = page.content()
 
@@ -481,17 +469,14 @@ def test_entry_full_crud_roundtrip(page: Page, app_url: str) -> None:
     # Ensure sense exists
     if page.locator('textarea.definition-text:visible').count() == 0:
         page.click('#add-first-sense-btn')
-        for _ in range(50):
-            if page.locator('textarea.definition-text:visible').count() > 0:
-                break
-            page.wait_for_timeout(100)
+        page.wait_for_selector('textarea.definition-text:visible', timeout=5000)
 
     # Fill definition
     page.locator('textarea.definition-text:visible').first.fill(f"Test definition for {headword}")
 
     # Save
     page.click('#save-btn', timeout=10000)
-    page.wait_for_load_state('networkidle', timeout=15000)
+    page.wait_for_url("**/entries/**status=saved*", timeout=15000)
 
     # Get entry ID
     entry_id = None
@@ -518,7 +503,6 @@ def test_entry_full_crud_roundtrip(page: Page, app_url: str) -> None:
 
     # === Step 3: READ via View Page ===
     page.goto(f"{base_url}/entries/{entry_id}")
-    page.wait_for_timeout(2000)
 
     view_text = page.content()
     assert headword in view_text, f"Headword not found in view page"
@@ -536,7 +520,7 @@ def test_entry_full_crud_roundtrip(page: Page, app_url: str) -> None:
 
     # Save
     page.click('#save-btn', timeout=10000)
-    page.wait_for_load_state('networkidle', timeout=15000)
+    page.wait_for_url("**/entries/**status=saved*", timeout=15000)
 
     # === Step 5: Verify UPDATE persisted ===
     updated_entry = get_entry(base_url, entry_id)
@@ -552,7 +536,6 @@ def test_entry_full_crud_roundtrip(page: Page, app_url: str) -> None:
 
     # === Step 6: Verify in View Page ===
     page.goto(f"{base_url}/entries/{entry_id}")
-    page.wait_for_timeout(2000)
 
     view_text = page.content()
     assert "updated" in view_text.lower() or headword in view_text, \
@@ -578,14 +561,11 @@ def test_css_display_renders_entry(page: Page, app_url: str) -> None:
 
     if page.locator('textarea.definition-text:visible').count() == 0:
         page.click('#add-first-sense-btn')
-        for _ in range(50):
-            if page.locator('textarea.definition-text:visible').count() > 0:
-                break
-            page.wait_for_timeout(100)
+        page.wait_for_selector('textarea.definition-text:visible', timeout=5000)
     page.locator('textarea.definition-text:visible').first.fill(f"CSS test definition for {headword}")
 
     page.click('#save-btn')
-    page.wait_for_load_state('networkidle')
+    page.wait_for_url("**/entries/**status=saved*", timeout=15000)
 
     # Get entry ID
     entry_id = None
@@ -599,7 +579,6 @@ def test_css_display_renders_entry(page: Page, app_url: str) -> None:
 
     # View entry
     page.goto(f"{base_url}/entries/{entry_id}")
-    page.wait_for_timeout(2000)
 
     # Check that CSS display section exists
     css_section = page.locator('.css-display, #css-display, .dictionary-display')

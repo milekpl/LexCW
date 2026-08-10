@@ -26,7 +26,7 @@ class TestActivityLogPage:
     def test_page_loads_successfully(self, page, app_url):
         """Test that the activity log page loads without errors."""
         page.goto(f"{app_url}/activity-log")
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
 
         # Check that main components are present
         expect(page.locator("h2:has-text('Activity Log')")).to_be_visible()
@@ -35,7 +35,7 @@ class TestActivityLogPage:
     def test_filter_panel_exists(self, page, app_url):
         """Test that the filter panel is present on the page."""
         page.goto(f"{app_url}/activity-log")
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
 
         # Check filter panel header
         expect(page.locator("h5:has-text('Filter & Search')")).to_be_visible()
@@ -50,7 +50,7 @@ class TestActivityLogPage:
     def test_action_type_filter_options(self, page, app_url):
         """Test that action type filter has all expected options."""
         page.goto(f"{app_url}/activity-log")
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
 
         action_select = page.locator("select[name='action']")
         
@@ -73,7 +73,7 @@ class TestActivityLogPage:
     def test_filter_by_action_type(self, page, app_url):
         """Test filtering by action type updates the URL and results."""
         page.goto(f"{app_url}/activity-log")
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
 
         # Select 'Create' from action filter
         page.select_option("select[name='action']", "create")
@@ -82,7 +82,7 @@ class TestActivityLogPage:
         page.click("form[action*='activity-log'] button[type='submit']")
         
         # Wait for page reload with filter
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
         
         # Check URL contains filter parameter
         assert "action=create" in page.url
@@ -90,7 +90,7 @@ class TestActivityLogPage:
     def test_search_input_functionality(self, page, app_url):
         """Test that search input accepts text and submits."""
         page.goto(f"{app_url}/activity-log")
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
 
         # Enter search text
         search_input = page.locator("input[name='search']")
@@ -100,7 +100,7 @@ class TestActivityLogPage:
         page.click("form[action*='activity-log'] button[type='submit']")
         
         # Wait for page reload
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
         
         # Check URL contains search parameter
         assert "search=test_entry" in page.url
@@ -108,7 +108,7 @@ class TestActivityLogPage:
     def test_date_range_filter(self, page, app_url):
         """Test date range filtering functionality."""
         page.goto(f"{app_url}/activity-log")
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
 
         # Set date range
         from_date = page.locator("input[name='date_from']")
@@ -121,7 +121,7 @@ class TestActivityLogPage:
         page.click("form[action*='activity-log'] button[type='submit']")
         
         # Wait for page reload
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
         
         # Check URL contains date parameters
         assert "date_from=2024-01-01" in page.url
@@ -131,7 +131,7 @@ class TestActivityLogPage:
         """Test that clear filters button removes all filters."""
         # Start with some filters applied
         page.goto(f"{app_url}/activity-log?action=create&search=test")
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
 
         # Check clear filters button exists when filters are applied
         clear_button = page.locator("a:has-text('Clear Filters')")
@@ -141,7 +141,7 @@ class TestActivityLogPage:
         clear_button.click()
         
         # Wait for page reload
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
         
         # Check URL no longer has filter parameters
         assert "action=" not in page.url
@@ -152,7 +152,7 @@ class TestActivityLogPage:
         # This test checks if the pagination links include filter params
         # We mock this by checking the template renders correctly
         page.goto(f"{app_url}/activity-log?action=update&search=entry")
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
 
         # The page should load without error even with filters
         expect(page.locator("h2:has-text('Activity Log')")).to_be_visible()
@@ -167,7 +167,7 @@ class TestActivityLogPage:
     def test_empty_state_display(self, page, app_url):
         """Test that empty state displays correctly when no activities."""
         page.goto(f"{app_url}/activity-log")
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
 
         # Check if table shows empty state or has data
         # The template shows "No activity recorded yet." message in empty state
@@ -182,7 +182,7 @@ class TestActivityLogPage:
     def test_filter_form_submission_method(self, page, app_url):
         """Test that filter form uses GET method (for bookmarkable URLs)."""
         page.goto(f"{app_url}/activity-log")
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
 
         form = page.locator("form[action*='activity-log']")
         expect(form).to_be_visible()
@@ -190,14 +190,14 @@ class TestActivityLogPage:
     def test_back_to_dashboard_link(self, page, app_url):
         """Test that back to dashboard link works."""
         page.goto(f"{app_url}/activity-log")
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
 
         # Find and click the back button
         back_button = page.locator("a:has-text('Back to Dashboard')")
         expect(back_button).to_be_visible()
         
         back_button.click()
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
         
         # Should be on dashboard/index page
         assert "/" in page.url or "index" in page.url
@@ -205,7 +205,7 @@ class TestActivityLogPage:
     def test_total_operations_count_display(self, page, app_url):
         """Test that total operations count badge is displayed."""
         page.goto(f"{app_url}/activity-log")
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
 
         # Check for the total count badge
         expect(page.locator(".badge:has-text('total operations')")).to_be_visible()
@@ -219,7 +219,7 @@ class TestActivityLogWithMockData:
         """Create a test entry to generate activity data."""
         # Navigate to entry creation page
         page.goto(f"{app_url}/entries/add")
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
         
         # Fill in minimal required fields
         # This assumes there's a lexical unit field
@@ -232,7 +232,7 @@ class TestActivityLogWithMockData:
                 submit_button = page.locator("form[action*='activity-log'] button[type='submit']").first
                 if submit_button.count() > 0:
                     submit_button.click()
-                    page.wait_for_load_state("networkidle")
+                    page.wait_for_load_state("load")
                     
                     # Wait a moment for activity to be recorded
                     time.sleep(0.5)
@@ -248,7 +248,7 @@ class TestActivityLogWithMockData:
         """Test that activity appears in log after creating an entry."""
         # Navigate to activity log
         page.goto(f"{app_url}/activity-log")
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
         
         # The table should be present
         expect(page.locator("table")).to_be_visible()
@@ -256,7 +256,7 @@ class TestActivityLogWithMockData:
         # Filter by 'create' action to see if our entry appears
         page.select_option("select[name='action']", "create")
         page.click("form[action*='activity-log'] button[type='submit']")
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
         
         # Page should load successfully
         assert "action=create" in page.url
@@ -264,14 +264,14 @@ class TestActivityLogWithMockData:
     def test_search_finds_entry_by_text(self, page, app_url, create_test_entry):
         """Test searching for activity by entry text."""
         page.goto(f"{app_url}/activity-log")
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
 
         # Search for the test entry we created
         search_input = page.locator("input[name='search']")
         search_input.fill("test_activity")
         
         page.click("form[action*='activity-log'] button[type='submit']")
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
         
         # Check URL has search parameter
         assert "search=test_activity" in page.url

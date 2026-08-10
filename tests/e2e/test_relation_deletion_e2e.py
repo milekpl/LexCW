@@ -190,19 +190,29 @@ def test_add_and_delete_relation(page: Page, app_url: str) -> None:
     # Now test the UI deletion flow
     page.goto(f"{base_url}/entries/{main_entry_id}/edit")
     page.wait_for_selector('#entry-form', timeout=10000)
-    page.wait_for_timeout(1500)
+    try:
+        page.wait_for_selector('.relation-item', timeout=3000)
+    except Exception:
+        pass  # entry may have no relations — the count checks below handle it
 
     # Find and click remove relation button
     relation_items = page.locator('.relation-item')
     if relation_items.count() > 0:
         remove_btn = relation_items.first.locator('.remove-relation-btn')
         if remove_btn.count() > 0:
+            before_count = relation_items.count()
             remove_btn.first.click(force=True)
-            page.wait_for_timeout(500)
+            page.wait_for_function(
+                f"() => document.querySelectorAll('.relation-item').length < {before_count}",
+                timeout=3000,
+            )
 
     close_sense_selection_modal(page)
     page.click('#save-btn', timeout=10000)
-    page.wait_for_load_state('networkidle', timeout=15000)
+    try:
+        page.wait_for_url("**/entries/**status=saved*", timeout=10000)
+    except Exception:
+        page.wait_for_load_state('load')
 
     # Get the entry after UI save
     entry_after_ui = get_entry(base_url, main_entry_id)
@@ -250,18 +260,28 @@ def test_relation_not_in_api_after_delete(page: Page, app_url: str) -> None:
     # Test UI delete flow
     page.goto(f"{base_url}/entries/{main_id}/edit")
     page.wait_for_selector('#entry-form', timeout=10000)
-    page.wait_for_timeout(1500)
+    try:
+        page.wait_for_selector('.relation-item', timeout=3000)
+    except Exception:
+        pass  # entry may have no relations — the count checks below handle it
 
     relation_items = page.locator('.relation-item')
     if relation_items.count() > 0:
         remove_btn = relation_items.first.locator('.remove-relation-btn')
         if remove_btn.count() > 0:
+            before_count = relation_items.count()
             remove_btn.first.click()
-            page.wait_for_timeout(500)
+            page.wait_for_function(
+                f"() => document.querySelectorAll('.relation-item').length < {before_count}",
+                timeout=3000,
+            )
 
     close_sense_selection_modal(page)
     page.click('#save-btn', timeout=10000)
-    page.wait_for_load_state('networkidle')
+    try:
+        page.wait_for_url("**/entries/**status=saved*", timeout=10000)
+    except Exception:
+        page.wait_for_load_state('load')
 
     # Use API to actually remove the relation (returns new entry ID due to delete/recreate)
     _, new_entry_id = update_entry_relations_via_api(base_url, main_id, [])
@@ -294,7 +314,6 @@ def test_relation_not_in_view_after_delete(page: Page, app_url: str) -> None:
 
     # Verify relation appears in view
     page.goto(f"{base_url}/entries/{main_id}")
-    page.wait_for_timeout(2000)
     view_text = page.content()
     assert target in view_text, f"Target '{target}' should appear in view page"
 
@@ -303,11 +322,9 @@ def test_relation_not_in_view_after_delete(page: Page, app_url: str) -> None:
 
     # Verify relation not in view
     page.goto(f"{base_url}/entries/{main_id}")
-    page.wait_for_timeout(2000)
 
     # Reload and check that the relation is gone
     page.reload()
-    page.wait_for_timeout(2000)
     view_text = page.content()
     # The relation section should not contain the target anymore
     relations_section = page.locator('.relations-section, #relations-container')
@@ -340,7 +357,10 @@ def test_relation_persistence_after_reload(page: Page, app_url: str) -> None:
     # Verify deletion via UI - navigate to edit page
     page.goto(f"{base_url}/entries/{main_id}/edit")
     page.wait_for_selector('#entry-form', timeout=10000)
-    page.wait_for_timeout(1500)
+    try:
+        page.wait_for_selector('.relation-item', timeout=3000)
+    except Exception:
+        pass  # entry may have no relations — the count checks below handle it
 
     # Verify relation item count is 0
     relation_items = page.locator('.relation-item')
@@ -380,7 +400,10 @@ def test_cancel_relation_deletion(page: Page, app_url: str) -> None:
     # Click remove but cancel the action
     page.goto(f"{base_url}/entries/{main_id}/edit")
     page.wait_for_selector('#entry-form', timeout=10000)
-    page.wait_for_timeout(1500)
+    try:
+        page.wait_for_selector('.relation-item', timeout=3000)
+    except Exception:
+        pass  # entry may have no relations — the count checks below handle it
 
     relation_items = page.locator('.relation-item')
     if relation_items.count() > 0:
@@ -393,7 +416,6 @@ def test_cancel_relation_deletion(page: Page, app_url: str) -> None:
 
     # Don't save - just navigate away
     page.goto(f"{base_url}/entries/{main_id}")
-    page.wait_for_timeout(2000)
 
     # Verify relation still exists via API (since we didn't save)
     entry_after = get_entry(base_url, main_id)

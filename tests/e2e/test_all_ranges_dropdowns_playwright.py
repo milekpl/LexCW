@@ -22,14 +22,27 @@ class TestAllRangesDropdownsPlaywright:
         """Test that grammatical info (part of speech) dropdown is populated."""
         # Navigate to entry edit page
         page.goto(f'{app_url}/entries/add')
-        page.wait_for_load_state('networkidle')
+        page.wait_for_load_state('load')
         
         # Find grammatical info selects (both entry-level and sense-level)
         pos_selects = page.locator('select.dynamic-grammatical-info, select[data-range-id="grammatical-info"]')
         
         # Wait for at least one to be visible
         expect(pos_selects.first).to_be_visible(timeout=10000)
-        
+
+        # Options are loaded async from the ranges API — wait until at least
+        # one real category option is present so the assertions below don't
+        # race the range loader.
+        page.wait_for_function(
+            """() => {
+                const sel = document.querySelector('select.dynamic-grammatical-info, select[data-range-id="grammatical-info"]');
+                if (!sel) return false;
+                const opts = Array.from(sel.options).map(o => o.text.toLowerCase());
+                return opts.some(t => ['noun', 'verb', 'adjective', 'adverb'].some(c => t.includes(c)));
+            }""",
+            timeout=5000,
+        )
+
         # Get options from first select
         options = pos_selects.first.locator('option').all_text_contents()
         
@@ -47,7 +60,7 @@ class TestAllRangesDropdownsPlaywright:
     def test_domain_type_dropdown_populated(self, page: Page, app_url):
         """Test that domain type dropdown is populated from domain-type range."""
         page.goto(f'{app_url}/entries/add')
-        page.wait_for_load_state('networkidle')
+        page.wait_for_load_state('load')
         
         # Wait a bit for JavaScript to initialize dropdowns
         page.wait_for_timeout(2000)
@@ -85,7 +98,7 @@ class TestAllRangesDropdownsPlaywright:
     def test_semantic_domain_dropdown_populated(self, page: Page, app_url):
         """Test that semantic domain dropdown is populated from semantic-domain-ddp4 range."""
         page.goto(f'{app_url}/entries/add')
-        page.wait_for_load_state('networkidle')
+        page.wait_for_load_state('load')
         
         # Wait for JavaScript to initialize dropdowns
         page.wait_for_timeout(2000)
@@ -129,7 +142,7 @@ class TestAllRangesDropdownsPlaywright:
     def test_usage_type_dropdown_populated(self, page: Page, app_url):
         """Test that usage type dropdown is populated from usage-type range."""
         page.goto(f'{app_url}/entries/add')
-        page.wait_for_load_state('networkidle')
+        page.wait_for_load_state('load')
         
         # Wait for JavaScript to initialize dropdowns
         page.wait_for_timeout(2000)
@@ -219,7 +232,7 @@ class TestAllRangesDropdownsPlaywright:
     def test_dynamic_lift_range_initialization(self, page: Page, app_url):
         """Test that ALL range-based dropdowns are initialized (Alpine or legacy)."""
         page.goto(f'{app_url}/entries/add')
-        page.wait_for_load_state('networkidle')
+        page.wait_for_load_state('load')
 
         # Wait for JavaScript + Alpine initialization
         page.wait_for_timeout(3000)

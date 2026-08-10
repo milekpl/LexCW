@@ -138,7 +138,7 @@ class TestAIQualityControl:
         
         # Navigate to workset curation page
         page.goto(f"{app_url}/workbench/worksets/{workset_id}/curation")
-        page.wait_for_load_state('networkidle')
+        page.wait_for_load_state('load')
         
         # Verify curation UI elements are present
         expect(page.locator('#curation-view')).to_be_visible()
@@ -273,7 +273,7 @@ class TestAIQualityControlIntegration:
         
         # Step 5: Open curation UI
         page.goto(f"{app_url}/workbench/worksets/{workset_id}/curation")
-        page.wait_for_load_state('networkidle')
+        page.wait_for_load_state('load')
         
         expect(page.locator('#curation-view')).to_be_visible()
         

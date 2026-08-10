@@ -20,7 +20,7 @@ from playwright.sync_api import Page, expect
 def test_entry_view_mode_switcher_visible(page: Page, app_url: str) -> None:
     """The mode switcher pill should be visible on the view page."""
     page.goto(f"{app_url}/entries/test_entry_1")
-    page.wait_for_load_state("networkidle")
+    page.wait_for_load_state("load")
 
     read_btn = page.locator('button[data-view-mode="default"]')
     annotate_btn = page.locator('button[data-view-mode="annotations"]')
@@ -39,7 +39,7 @@ def test_entry_view_mode_switcher_visible(page: Page, app_url: str) -> None:
 def test_default_mode_hides_structured_senses(page: Page, app_url: str) -> None:
     """Default mode hides the structured senses section."""
     page.goto(f"{app_url}/entries/test_entry_1?view=default")
-    page.wait_for_load_state("networkidle")
+    page.wait_for_load_state("load")
 
     # Structured senses section should NOT be visible
     senses_section = page.locator('.card-header h5:has-text("Senses")')
@@ -58,7 +58,7 @@ def test_default_mode_hides_structured_senses(page: Page, app_url: str) -> None:
 def test_all_mode_shows_structured_senses(page: Page, app_url: str) -> None:
     """All mode shows the structured senses view."""
     page.goto(f"{app_url}/entries/test_entry_1?view=all")
-    page.wait_for_load_state("networkidle")
+    page.wait_for_load_state("load")
 
     # Structured senses section should be visible
     senses_section = page.locator('.card-header h5:has-text("Senses")')
@@ -73,11 +73,11 @@ def test_all_mode_shows_structured_senses(page: Page, app_url: str) -> None:
 def test_view_mode_session_persistence(page: Page, app_url: str) -> None:
     """View mode should persist in sessionStorage across navigations."""
     page.goto(f"{app_url}/entries/test_entry_1?view=annotations")
-    page.wait_for_load_state("networkidle")
+    page.wait_for_load_state("load")
 
     # Navigate to a different entry without mode param
     page.goto(f"{app_url}/entries/test_entry_2")
-    page.wait_for_load_state("networkidle")
+    page.wait_for_load_state("load")
 
     # The annotations mode should be active (from sessionStorage)
     annotate_btn = page.locator('button[data-view-mode="annotations"]')
@@ -89,7 +89,7 @@ def test_view_mode_session_persistence(page: Page, app_url: str) -> None:
 def test_client_side_mode_switching(page: Page, app_url: str) -> None:
     """Switching modes via buttons should be instant (no page reload)."""
     page.goto(f"{app_url}/entries/test_entry_1?view=default")
-    page.wait_for_load_state("networkidle")
+    page.wait_for_load_state("load")
 
     senses_section = page.locator('.card-header h5:has-text("Senses")')
     expect(senses_section).not_to_be_visible()
@@ -130,7 +130,10 @@ def test_annotation_view_mode(page: Page, app_url: str) -> None:
     page.locator('textarea.definition-text:visible').first.fill(f"Definition for {headword}")
 
     page.click('#save-btn')
-    page.wait_for_load_state('networkidle')
+    try:
+        page.wait_for_url("**/entries/**status=saved*", timeout=10000)
+    except Exception:
+        page.wait_for_load_state('load')
 
     current_url = page.url
     match = re.search(r'/entries/([^/?]+)', current_url)
@@ -153,7 +156,10 @@ def test_annotation_view_mode(page: Page, app_url: str) -> None:
 
     # === Step 3: Save (redirects to view page) ===
     page.click('#save-btn')
-    page.wait_for_load_state('networkidle')
+    try:
+        page.wait_for_url("**/entries/**status=saved*", timeout=10000)
+    except Exception:
+        page.wait_for_load_state('load')
     assert entry_id in page.url
 
     # Clear sessionStorage and navigate cleanly to the entry view page.
@@ -162,7 +168,7 @@ def test_annotation_view_mode(page: Page, app_url: str) -> None:
     page.evaluate("sessionStorage.removeItem('entryViewMode')")
     page.goto(f"{app_url}/", wait_until="domcontentloaded")
     page.goto(f"{app_url}/entries/{entry_id}", wait_until="domcontentloaded")
-    page.wait_for_load_state("networkidle")
+    page.wait_for_load_state("load")
 
     # === Step 4: Verify default mode hides annotations ===
     annot_section = page.locator('.card-header h5:has-text("Annotations")')

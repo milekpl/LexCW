@@ -145,7 +145,10 @@ def test_create_entry_with_gloss(page: Page, app_url: str) -> None:
 
     # Save the entry
     page.click('#save-btn', timeout=10000)
-    page.wait_for_load_state('networkidle', timeout=15000)
+    try:
+        page.wait_for_url("**/entries/**status=saved*", timeout=10000)
+    except Exception:
+        page.wait_for_load_state('load')
 
     # Get the entry ID
     entry_id = None
@@ -217,7 +220,10 @@ def test_create_entry_with_multilingual_gloss(page: Page, app_url: str) -> None:
 
     # Save the entry
     page.click('#save-btn', timeout=10000)
-    page.wait_for_load_state('networkidle', timeout=15000)
+    try:
+        page.wait_for_url("**/entries/**status=saved*", timeout=10000)
+    except Exception:
+        page.wait_for_load_state('load')
 
     # Get the entry ID
     entry_id = None
@@ -307,7 +313,6 @@ def test_gloss_displays_in_view(page: Page, app_url: str) -> None:
 
     # Navigate to view page
     page.goto(f"{base_url}/entries/{entry_id}")
-    page.wait_for_timeout(2000)
 
     # Verify gloss is displayed
     page_content = page.content()
@@ -407,7 +412,10 @@ def test_gloss_roundtrip(page: Page, app_url: str) -> None:
         gloss_input.fill(gloss1)
 
     page.click('#save-btn', timeout=10000)
-    page.wait_for_load_state('networkidle', timeout=15000)
+    try:
+        page.wait_for_url("**/entries/**status=saved*", timeout=10000)
+    except Exception:
+        page.wait_for_load_state('load')
 
     # Get entry ID
     entry_id = None
@@ -421,7 +429,6 @@ def test_gloss_roundtrip(page: Page, app_url: str) -> None:
 
     # === Step 2: Verify via view page ===
     page.goto(f"{base_url}/entries/{entry_id}")
-    page.wait_for_timeout(2000)
     view_text = page.content()
     assert gloss1 in view_text, f"Initial gloss not in view: {gloss1}"
 
@@ -435,7 +442,10 @@ def test_gloss_roundtrip(page: Page, app_url: str) -> None:
         gloss_input.fill(gloss2)
 
     page.click('#save-btn', timeout=10000)
-    page.wait_for_load_state('networkidle', timeout=15000)
+    try:
+        page.wait_for_url("**/entries/**status=saved*", timeout=10000)
+    except Exception:
+        page.wait_for_load_state('load')
 
     # === Step 4: Verify update persisted ===
     entry = get_entry_with_retry(base_url, entry_id, expected_gloss=gloss2)
@@ -451,6 +461,5 @@ def test_gloss_roundtrip(page: Page, app_url: str) -> None:
 
     # === Step 5: Verify in view after update ===
     page.goto(f"{base_url}/entries/{entry_id}")
-    page.wait_for_timeout(2000)
     view_text = page.content()
     assert gloss2 in view_text, f"Updated gloss not in view: {gloss2}"

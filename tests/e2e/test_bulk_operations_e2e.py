@@ -26,7 +26,7 @@ class TestBulkOperationsPage:
         page.goto(f"{app_url}/workbench/bulk-operations")
 
         # Wait for page to load
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
 
         # Check that main components are present - new template structure
         expect(page.locator("h4:has-text('Bulk Operations')")).to_be_visible()
@@ -36,7 +36,7 @@ class TestBulkOperationsPage:
     def test_condition_builder_initializes(self, page, app_url):
         """Test that ConditionBuilder initializes with expected controls."""
         page.goto(f"{app_url}/workbench/bulk-operations")
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
 
         # Check for condition builder elements
         expect(page.locator("#condition-builder")).to_be_visible()
@@ -45,7 +45,7 @@ class TestBulkOperationsPage:
     def test_pipeline_editor_initializes(self, page, app_url):
         """Test that PipelineEditor initializes with expected controls."""
         page.goto(f"{app_url}/workbench/bulk-operations")
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
 
         # Check for pipeline editor elements
         expect(page.locator("#pipeline-editor")).to_be_visible()
@@ -54,7 +54,7 @@ class TestBulkOperationsPage:
     def test_add_condition_step(self, page, app_url):
         """Test adding a condition to the condition builder."""
         page.goto(f"{app_url}/workbench/bulk-operations")
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
 
         # Click add condition button
         page.click("button:has-text('+ Add Condition')")
@@ -68,7 +68,7 @@ class TestBulkOperationsPage:
     def test_add_pipeline_step(self, page, app_url):
         """Test adding a step to the pipeline editor."""
         page.goto(f"{app_url}/workbench/bulk-operations")
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
 
         # Click add step button
         page.click("button:has-text('+ Add Step')")
@@ -82,7 +82,7 @@ class TestBulkOperationsPage:
     def test_pipeline_action_types_available(self, page, app_url):
         """Test that all action types are available in the dropdown."""
         page.goto(f"{app_url}/workbench/bulk-operations")
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
 
         # Add a step
         page.click("button:has-text('+ Add Step')")
@@ -102,7 +102,7 @@ class TestBulkOperationsPage:
     def test_relation_step_shows_search_selector(self, page, app_url):
         """Test that relation steps show the entry search selector."""
         page.goto(f"{app_url}/workbench/bulk-operations")
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
 
         # Add a step and select relation type
         page.click("button:has-text('+ Add Step')")
@@ -117,28 +117,28 @@ class TestBulkOperationsPage:
     def test_preview_button_exists(self, page, app_url):
         """Test that the Preview Match button is present."""
         page.goto(f"{app_url}/workbench/bulk-operations")
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
 
         expect(page.locator("button:has-text('Preview Match')")).to_be_visible()
 
     def test_execute_button_exists(self, page, app_url):
         """Test that the Execute Pipeline button is present."""
         page.goto(f"{app_url}/workbench/bulk-operations")
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
 
         expect(page.locator("#execute-pipeline-btn")).to_be_visible()
 
     def test_save_pipeline_button_exists(self, page, app_url):
         """Test that the Save Pipeline button is present."""
         page.goto(f"{app_url}/workbench/bulk-operations")
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
 
         expect(page.locator("#save-pipeline-btn")).to_be_visible()
 
     def test_saved_pipelines_section_exists(self, page, app_url):
         """Test that the Saved Pipelines section is present."""
         page.goto(f"{app_url}/workbench/bulk-operations")
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
 
         # The section header contains "Saved Pipelines" text
         expect(page.locator(".card-header:has-text('Saved Pipelines')")).to_be_visible()
@@ -146,7 +146,7 @@ class TestBulkOperationsPage:
     def test_preview_does_not_crash(self, page, app_url):
         """Test that clicking Preview doesn't cause JS errors."""
         page.goto(f"{app_url}/workbench/bulk-operations")
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
 
         # Add a condition and a step
         page.click("button:has-text('+ Add Condition')")
@@ -167,7 +167,7 @@ class TestBulkOperationsPage:
             page.wait_for_response(lambda r: 'preview' in r.url or '/api/' in r.url, timeout=5000)
         except Exception:
             # Fallback to a short network idle if no matching response observed
-            page.wait_for_load_state('networkidle')
+            page.wait_for_load_state('load')
 
         # Verify page is still functional
         expect(page.locator("body")).to_be_visible()
@@ -175,7 +175,7 @@ class TestBulkOperationsPage:
     def test_keyboard_shortcuts_available(self, page, app_url):
         """Test that keyboard shortcuts are mentioned in UI."""
         page.goto(f"{app_url}/workbench/bulk-operations")
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
 
         # Check that keyboard hint is visible
         expect(page.locator("text=Ctrl+Enter")).to_be_visible()
@@ -183,7 +183,7 @@ class TestBulkOperationsPage:
     def test_navigation_to_query_builder(self, page, app_url):
         """Test navigation to Query Builder."""
         page.goto(f"{app_url}/workbench/bulk-operations")
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
 
         # Use .btn-group scope to avoid strict-mode violation from nav dropdown dup
         query_builder_link = page.locator(".btn-group a[href='/workbench/query-builder']")
@@ -191,13 +191,13 @@ class TestBulkOperationsPage:
         query_builder_link.click()
 
         # Should navigate to query builder
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
         assert "/workbench/query-builder" in page.url
 
     def test_navigation_to_worksets(self, page, app_url):
         """Test navigation to Worksets."""
         page.goto(f"{app_url}/workbench/bulk-operations")
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
 
         # Use .btn-group scope to avoid strict-mode violation from nav dropdown dup
         worksets_link = page.locator(".btn-group a[href='/workbench/worksets']")
@@ -205,7 +205,7 @@ class TestBulkOperationsPage:
         worksets_link.click()
 
         # Should navigate to worksets
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
         assert "/workbench/worksets" in page.url
 
 
@@ -251,7 +251,7 @@ class TestWorksetBulkDelete:
     def test_worksets_page_loads(self, page, app_url):
         """Test that the worksets page loads."""
         page.goto(f"{app_url}/workbench/worksets")
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
 
         # The page should have worksets content - new template structure
         expect(page.locator("h4:has-text('Curation Sessions')")).to_be_visible()
@@ -259,7 +259,7 @@ class TestWorksetBulkDelete:
     def test_create_workset_button_exists(self, page, app_url):
         """Test that create workset button exists."""
         page.goto(f"{app_url}/workbench/worksets")
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
 
         # Create workset button
         create_link = page.locator("a.btn-primary[href='/workbench/query-builder']")

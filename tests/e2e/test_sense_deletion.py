@@ -298,7 +298,7 @@ def test_sense_deletion_persists_after_save(page, app_url):
     # Navigate to edit the entry
     print(f"Navigating to edit URL: {edit_url}")
     page.goto(edit_url, timeout=30000)
-    page.wait_for_load_state("networkidle")
+    page.wait_for_load_state("load")
 
     print("Page loaded, setting up console monitoring...")
     # Setup console monitoring
@@ -347,8 +347,8 @@ def test_sense_deletion_persists_after_save(page, app_url):
     page.evaluate("() => { window.__E2E_CAPTURE_XML = true; window.__LAST_SERIALIZED_XML = null; }")
 
     # Save the entry
-    print("Clicking Save Entry button...")
-    page.click('button[type="submit"]:has-text("Save Entry")')
+    print("Clicking Save button...")
+    page.click('#save-btn')
 
     # Wait for the client to populate the captured XML (short timeout)
     try:
@@ -387,7 +387,7 @@ def test_sense_deletion_persists_after_save(page, app_url):
     except Exception as nav_error:
         print(f"Navigation timeout (will fallback to networkidle): {nav_error}")
         try:
-            page.wait_for_load_state("networkidle", timeout=5000)
+            page.wait_for_load_state("load", timeout=5000)
         except Exception:
             page.wait_for_timeout(1000)
 
@@ -444,7 +444,7 @@ def test_default_template_not_serialized(page, flask_test_server):
 
     # Navigate to add entry page
     page.goto(f"{base_url}/entries/add", timeout=30000)
-    page.wait_for_load_state("networkidle")
+    page.wait_for_load_state("load")
 
     # The legacy clone-source template must NOT exist (eliminated by the Alpine refactor).
     expect(page.locator('#default-sense-template, .default-sense-template')).to_have_count(0)
@@ -461,7 +461,7 @@ def test_default_template_not_serialized(page, flask_test_server):
     expect(real_senses).to_have_count(1, timeout=3000)
 
     # Save
-    page.click('button[type="submit"]:has-text("Save Entry")')
+    page.click('#save-btn')
 
     # Wait for navigation or success indicator
     try:
@@ -519,7 +519,7 @@ def test_multiple_deletions(page, flask_test_server):
     edit_url = f"{base_url}/entries/{entry_id}/edit"
 
     page.goto(edit_url, timeout=30000)
-    page.wait_for_load_state("networkidle")
+    page.wait_for_load_state("load")
 
     # Check senses
     page.wait_for_timeout(1000)
@@ -557,7 +557,7 @@ def test_multiple_deletions(page, flask_test_server):
     page.evaluate("() => { window.__E2E_CAPTURE_XML = true; window.__LAST_SERIALIZED_XML = null; }")
 
     # Save - use expect_response to wait for the actual PUT to complete.
-    # wait_for_load_state("networkidle") fires prematurely because submitForm() uses
+    # wait_for_load_state("load") fires prematurely because submitForm() uses
     # async WebWorker serialization – no network request is active during that phase,
     # so networkidle fires before the PUT is sent, then page.reload() cancels the save.
     # Also wait for networkidle FIRST: Flask dev server is single-threaded, so any
@@ -567,7 +567,7 @@ def test_multiple_deletions(page, flask_test_server):
     # and the POST is visible before networkidle is evaluated.
     page.wait_for_timeout(800)
     try:
-        page.wait_for_load_state("networkidle", timeout=10000)
+        page.wait_for_load_state("load", timeout=10000)
     except Exception:
         pass  # Proceed even if networkidle times out; the 800 ms wait above already
               # guaranteed the debounce-triggered live-preview POST was dispatched.
@@ -644,13 +644,13 @@ def test_add_and_remove_sense(page, flask_test_server):
     expect(page.locator('.sense-item:not(#default-sense-template):not(.default-sense-template)')).to_have_count(initial_senses, timeout=5000)
 
     # Save the form
-    save_btn = page.locator('button[type="submit"]:has-text("Save Entry")')
+    save_btn = page.locator('#save-btn')
     save_btn.click()
 
     # After save, the JS redirects to the view page (/entries/{id}?status=saved).
     # Wait for that redirect to complete before reloading the edit page.
     page.wait_for_url(f"**/entries/{entry_id}*", timeout=15000)
-    page.wait_for_load_state("networkidle", timeout=10000)
+    page.wait_for_load_state("load", timeout=10000)
 
     # Reload the page to verify persistence
     page.goto(f"{base_url}/entries/{entry_id}/edit", timeout=30000)

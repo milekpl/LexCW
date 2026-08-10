@@ -22,7 +22,7 @@ class TestCSRFProtection:
     def test_csrf_meta_tag_present_on_homepage(self, page: Page, app_url):
         """Test that CSRF meta tag is present on homepage."""
         page.goto(f'{app_url}/')
-        page.wait_for_load_state('networkidle')
+        page.wait_for_load_state('load')
 
         # Check for CSRF meta tag - meta tags aren't visible elements,
         # so we check count and content attribute
@@ -36,7 +36,7 @@ class TestCSRFProtection:
     def test_csrf_meta_tag_present_on_ranges_editor(self, page: Page, app_url):
         """Test that CSRF meta tag is present on ranges editor page."""
         page.goto(f'{app_url}/ranges-editor')
-        page.wait_for_load_state('networkidle')
+        page.wait_for_load_state('load')
 
         # Check for CSRF meta tag
         csrf_meta = page.locator('meta[name="csrf-token"]')
@@ -49,7 +49,7 @@ class TestCSRFProtection:
     def test_csrf_meta_tag_present_on_entries_page(self, page: Page, app_url):
         """Test that CSRF meta tag is present on entries page."""
         page.goto(f'{app_url}/entries')
-        page.wait_for_load_state('networkidle')
+        page.wait_for_load_state('load')
 
         # Check for CSRF meta tag
         csrf_meta = page.locator('meta[name="csrf-token"]')
@@ -62,7 +62,7 @@ class TestCSRFProtection:
     def test_csrf_meta_tag_present_on_validation_tool(self, page: Page, app_url):
         """Test that CSRF meta tag is present on validation tool page."""
         page.goto(f'{app_url}/validation')
-        page.wait_for_load_state('networkidle')
+        page.wait_for_load_state('load')
 
         # Check for CSRF meta tag
         csrf_meta = page.locator('meta[name="csrf-token"]')
@@ -75,7 +75,7 @@ class TestCSRFProtection:
     def test_csrf_token_accessible_from_javascript(self, page: Page, app_url):
         """Test that CSRF token is accessible from JavaScript via getCsrfToken function."""
         page.goto(f'{app_url}/ranges-editor')
-        page.wait_for_load_state('networkidle')
+        page.wait_for_load_state('load')
 
         # Check that getCsrfToken function exists and returns the token
         token_from_js = page.evaluate("""
@@ -99,7 +99,7 @@ class TestCSRFProtection:
     def test_ranges_editor_create_range_includes_csrf(self, page: Page, app_url):
         """Test that creating a range sends CSRF token in the request."""
         page.goto(f'{app_url}/ranges-editor')
-        page.wait_for_load_state('networkidle')
+        page.wait_for_load_state('load')
 
         # Set up a listener to capture the request headers
         captured_headers = {}
@@ -141,7 +141,7 @@ class TestCSRFProtection:
     def test_csrf_token_works_with_api_utils(self, page: Page, app_url):
         """Test that api-utils.js getCsrfToken function works correctly."""
         page.goto(f'{app_url}/entries')
-        page.wait_for_load_state('networkidle')
+        page.wait_for_load_state('load')
 
         # Verify the api-utils.js is loaded by checking for apiGet function
         api_get_exists = page.evaluate("typeof apiGet === 'function'")
@@ -318,7 +318,7 @@ class TestCSRFAPIProtection:
     def test_ranges_api_accepts_request_with_csrf(self, page: Page, app_url):
         """Test that ranges API accepts POST requests with valid CSRF token."""
         page.goto(f'{app_url}/ranges-editor')
-        page.wait_for_load_state('networkidle')
+        page.wait_for_load_state('load')
 
         # Get the valid CSRF token
         valid_token = page.locator('meta[name="csrf-token"]').get_attribute('content')

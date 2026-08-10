@@ -18,7 +18,7 @@ class TestAnnotationsPlaywright:
     @pytest.fixture(autouse=True)
     def setup_test_entry(self, page: Page, app_url: str) -> None:
         page.goto(f"{app_url}/entries/add")
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
 
         if '/settings/projects' in page.url:
             select_btn = page.locator('a.btn-success:has-text("Select")').first
@@ -28,10 +28,10 @@ class TestAnnotationsPlaywright:
                 select_btn = page.locator('.btn-success:has-text("Select")').first
             if select_btn.is_visible():
                 select_btn.click()
-                page.wait_for_load_state("networkidle")
+                page.wait_for_load_state("load")
                 page.wait_for_timeout(500)
 
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
 
     # --- Entry-level annotation tests ---
 
@@ -181,7 +181,10 @@ class TestAnnotationsPlaywright:
             lex_input.fill('persist-test-entry')
 
         page.click('#save-btn')
-        page.wait_for_load_state('networkidle')
+        try:
+            page.wait_for_url("**/entries/**status=saved*", timeout=10000)
+        except Exception:
+            page.wait_for_load_state('load')
 
         assert '/entries/' in page.url
 

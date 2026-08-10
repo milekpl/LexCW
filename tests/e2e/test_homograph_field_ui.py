@@ -70,7 +70,6 @@ def test_edit_form_homograph_behavior(page: Page, app_url: str, ensure_sense) ->
     
     # Navigate to entries list to find the created entry
     page.goto(f"{app_url}/entries")
-    page.wait_for_timeout(1000)
     
     # Find and click edit link for our test entry
     edit_link = page.locator('a[href*="homograph_test_word"][href*="/edit"]').first

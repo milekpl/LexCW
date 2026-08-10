@@ -11,7 +11,7 @@ def test_debug_entry_form(page: Page, app_url: str) -> None:
     """Debug test to capture what's on the entry form."""
     # Go to add new entry page
     page.goto(f"{app_url}/entry/add")
-    page.wait_for_load_state("networkidle")
+    page.wait_for_load_state("load")
     
     # Take a screenshot
     page.screenshot(path="/tmp/entry_form_debug.png")

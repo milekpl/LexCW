@@ -60,30 +60,30 @@ class TestWorksetListPage:
 
     def test_page_loads_successfully(self, page, app_url):
         page.goto(f"{app_url}/workbench/worksets")
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
         expect(page.locator("h4:has-text('Curation Sessions')")).to_be_visible()
         expect(page.locator("#workset-list")).to_be_visible()
 
     def test_create_workset_link_exists(self, page, app_url):
         page.goto(f"{app_url}/workbench/worksets")
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
         expect(page.locator("a.btn-primary[href='/workbench/query-builder']").first).to_be_visible()
 
     def test_workset_list_container_exists(self, page, app_url):
         page.goto(f"{app_url}/workbench/worksets")
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
         expect(page.locator("#workset-list")).to_be_visible()
 
     def test_navigation_links_work(self, page, app_url):
         page.goto(f"{app_url}/workbench/worksets")
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
 
         page.click(".btn-group a[href='/workbench/query-builder']")
         page.wait_for_load_state("domcontentloaded")
         assert "/workbench/query-builder" in page.url
 
         page.goto(f"{app_url}/workbench/worksets")
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
 
         page.click(".btn-group a[href='/workbench/bulk-operations']")
         page.wait_for_load_state("domcontentloaded")
@@ -91,7 +91,7 @@ class TestWorksetListPage:
 
     def test_bulk_operations_link_exists(self, page, app_url):
         page.goto(f"{app_url}/workbench/worksets")
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
         expect(page.locator("a.btn-outline-success[href='/workbench/bulk-operations']")).to_be_visible()
 
 
@@ -117,7 +117,7 @@ class TestWorksetSelection:
 
     def _go_to_worksets(self, page, app_url):
         page.goto(f"{app_url}/workbench/worksets")
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
 
     def test_select_all_checkbox_exists(self, page, app_url, workset_id):
         self._go_to_worksets(page, app_url)
@@ -206,7 +206,7 @@ class TestWorksetCreation:
 
         # Navigate to Query Builder
         page.goto(f"{app_url}/workbench/query-builder")
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
         expect(page.locator("h4:has-text('Query Builder')")).to_be_visible()
 
         # Set filter value
@@ -233,7 +233,7 @@ class TestWorksetCreation:
 
         # Verify on worksets page
         page.goto(f"{app_url}/workbench/worksets")
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
         page.wait_for_selector("#workset-list", timeout=10000)
 
         # Check via API
@@ -252,7 +252,7 @@ class TestWorksetCreation:
         workset_name = f"Multi-filter {uuid.uuid4().hex[:8]}"
 
         page.goto(f"{app_url}/workbench/query-builder")
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
 
         # Add second filter
         page.locator("#add-filter-btn").click()
@@ -280,7 +280,7 @@ class TestWorksetCreation:
 
         # Verify
         page.goto(f"{app_url}/workbench/worksets")
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
         page.wait_for_selector("#workset-list", timeout=10000)
 
         r = requests.get(f"{app_url}/api/worksets", timeout=5)

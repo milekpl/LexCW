@@ -109,6 +109,17 @@ def create_entry() -> Any:
     except Exception as e:
         logger.error('[XML API] Unexpected error creating entry: %s', str(e), exc_info=True)
         return jsonify({'error': f'Internal error: {str(e)}'}), 500
+    finally:
+        # Release the BaseX session after every request — a session left open
+        # holds the database open and collides with concurrent writers
+        # ("opened by another process"), which made the threaded test server
+        # flaky (entries briefly unfindable after save).
+        _svc = locals().get('xml_service')
+        if _svc is not None:
+            try:
+                _svc.close()
+            except Exception:
+                pass
 
 
 @xml_entries_bp.route('/entries/<string:entry_id>', methods=['PUT'])
@@ -178,6 +189,13 @@ def update_entry(entry_id: str) -> Any:
     except Exception as e:
         logger.error('[XML API] Unexpected error updating entry %s: %s', entry_id, str(e), exc_info=True)
         return jsonify({'error': f'Internal error: {str(e)}'}), 500
+    finally:
+        _svc = locals().get('xml_service')
+        if _svc is not None:
+            try:
+                _svc.close()
+            except Exception:
+                pass
 
 
 @xml_entries_bp.route('/entries/<string:entry_id>', methods=['DELETE'])
@@ -222,6 +240,13 @@ def delete_entry(entry_id: str) -> Any:
     except Exception as e:
         logger.error('[XML API] Unexpected error deleting entry %s: %s', entry_id, str(e), exc_info=True)
         return jsonify({'error': f'Internal error: {str(e)}'}), 500
+    finally:
+        _svc = locals().get('xml_service')
+        if _svc is not None:
+            try:
+                _svc.close()
+            except Exception:
+                pass
 
 
 @xml_entries_bp.route('/entries/<string:entry_id>', methods=['GET'])
@@ -321,6 +346,13 @@ def get_entry(entry_id: str) -> Any:
     except Exception as e:
         logger.error('[XML API] Unexpected error getting entry %s: %s', entry_id, str(e), exc_info=True)
         return jsonify({'error': f'Internal error: {str(e)}'}), 500
+    finally:
+        _svc = locals().get('xml_service')
+        if _svc is not None:
+            try:
+                _svc.close()
+            except Exception:
+                pass
 
 
 @xml_entries_bp.route('/entries', methods=['GET'])
@@ -423,6 +455,13 @@ def search_entries() -> Any:
     except Exception as e:
         logger.error('[XML API] Unexpected error searching entries: %s', str(e), exc_info=True)
         return jsonify({'error': f'Internal error: {str(e)}'}), 500
+    finally:
+        _svc = locals().get('xml_service')
+        if _svc is not None:
+            try:
+                _svc.close()
+            except Exception:
+                pass
 
 
 @xml_entries_bp.route('/stats', methods=['GET'])
@@ -477,3 +516,10 @@ def get_stats() -> Any:
     except Exception as e:
         logger.error('[XML API] Unexpected error getting stats: %s', str(e), exc_info=True)
         return jsonify({'error': f'Internal error: {str(e)}'}), 500
+    finally:
+        _svc = locals().get('xml_service')
+        if _svc is not None:
+            try:
+                _svc.close()
+            except Exception:
+                pass

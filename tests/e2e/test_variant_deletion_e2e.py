@@ -231,7 +231,10 @@ def test_add_and_delete_variant(page: Page, app_url: str) -> None:
     # Now test the UI deletion flow
     page.goto(f"{base_url}/entries/{main_entry_id}/edit")
     page.wait_for_selector('#entry-form', timeout=10000)
-    page.wait_for_timeout(1500)
+    try:
+        page.wait_for_selector('.variant-item', timeout=3000)
+    except Exception:
+        pass  # entry may have no variants — the count checks below handle it
 
     # Find and click remove variant button
     variant_items = page.locator('.direct-variants-container .variant-item')
@@ -247,7 +250,10 @@ def test_add_and_delete_variant(page: Page, app_url: str) -> None:
 
     close_sense_selection_modal(page)
     page.click('#save-btn', timeout=10000)
-    page.wait_for_load_state('networkidle', timeout=15000)
+    try:
+        page.wait_for_url("**/entries/**status=saved*", timeout=10000)
+    except Exception:
+        page.wait_for_load_state('load')
 
     # Get the entry after UI save
     entry_after_ui = get_entry(base_url, main_entry_id)
@@ -295,7 +301,10 @@ def test_variant_not_in_api_after_delete(page: Page, app_url: str) -> None:
     # Test UI delete flow
     page.goto(f"{base_url}/entries/{main_id}/edit")
     page.wait_for_selector('#entry-form', timeout=10000)
-    page.wait_for_timeout(1500)
+    try:
+        page.wait_for_selector('.variant-item', timeout=3000)
+    except Exception:
+        pass  # entry may have no variants — the count checks below handle it
 
     variant_items = page.locator('.direct-variants-container .variant-item')
     if variant_items.count() == 0:
@@ -310,7 +319,7 @@ def test_variant_not_in_api_after_delete(page: Page, app_url: str) -> None:
 
     close_sense_selection_modal(page)
     page.click('#save-btn', timeout=10000)
-    page.wait_for_load_state('networkidle')
+    page.wait_for_load_state('load')
 
     # Use API to actually remove the variant (returns new entry ID due to delete/recreate)
     _, new_entry_id = update_entry_variants_via_api(base_url, main_id, [])
@@ -343,7 +352,6 @@ def test_variant_not_in_view_after_delete(page: Page, app_url: str) -> None:
 
     # Verify variant appears in view
     page.goto(f"{base_url}/entries/{main_id}")
-    page.wait_for_timeout(2000)
     view_text = page.content()
     assert target in view_text, f"Target '{target}' should appear in view page"
 
@@ -352,11 +360,9 @@ def test_variant_not_in_view_after_delete(page: Page, app_url: str) -> None:
 
     # Verify variant not in view
     page.goto(f"{base_url}/entries/{main_id}")
-    page.wait_for_timeout(2000)
 
     # Reload and check that the variant is gone
     page.reload()
-    page.wait_for_timeout(2000)
     view_text = page.content()
 
     # The variant section should not contain the target anymore
@@ -390,7 +396,10 @@ def test_variant_persistence_after_reload(page: Page, app_url: str) -> None:
     # Verify deletion via UI - navigate to edit page
     page.goto(f"{base_url}/entries/{main_id}/edit")
     page.wait_for_selector('#entry-form', timeout=10000)
-    page.wait_for_timeout(1500)
+    try:
+        page.wait_for_selector('.variant-item', timeout=3000)
+    except Exception:
+        pass  # entry may have no variants — the count checks below handle it
 
     # Verify variant item count is 0
     variant_items = page.locator('.direct-variants-container .variant-item')

@@ -93,7 +93,7 @@ def test_add_single_example(page: Page, app_url: str) -> None:
 
     page.wait_for_timeout(800)
     try:
-        page.wait_for_load_state('networkidle', timeout=10000)
+        page.wait_for_load_state('load', timeout=10000)
     except Exception:
         pass  # Proceed even if networkidle times out
 
@@ -171,7 +171,7 @@ def test_add_example_with_translation(page: Page, app_url: str) -> None:
 
     page.wait_for_timeout(800)
     try:
-        page.wait_for_load_state('networkidle', timeout=10000)
+        page.wait_for_load_state('load', timeout=10000)
     except Exception:
         pass  # Proceed even if networkidle times out
 
@@ -258,7 +258,7 @@ def test_add_multiple_examples(page: Page, app_url: str) -> None:
 
     page.wait_for_timeout(800)
     try:
-        page.wait_for_load_state('networkidle', timeout=10000)
+        page.wait_for_load_state('load', timeout=10000)
     except Exception:
         pass  # Proceed even if networkidle times out
 
@@ -318,7 +318,7 @@ def test_example_persists_via_api(page: Page, app_url: str) -> None:
 
     page.wait_for_timeout(800)
     try:
-        page.wait_for_load_state('networkidle', timeout=10000)
+        page.wait_for_load_state('load', timeout=10000)
     except Exception:
         pass  # Proceed even if networkidle times out
 
@@ -372,7 +372,7 @@ def test_example_displays_in_view(page: Page, app_url: str) -> None:
 
     page.wait_for_timeout(800)
     try:
-        page.wait_for_load_state('networkidle', timeout=10000)
+        page.wait_for_load_state('load', timeout=10000)
     except Exception:
         pass  # Proceed even if networkidle times out
 
@@ -384,7 +384,6 @@ def test_example_displays_in_view(page: Page, app_url: str) -> None:
 
     # Navigate to view page
     page.goto(f"{base_url}/entries/{entry_id}")
-    page.wait_for_timeout(2000)
 
     # Verify example is displayed
     page_content = page.content()
@@ -484,7 +483,7 @@ def test_delete_example(page: Page, app_url: str) -> None:
 
     page.wait_for_timeout(800)
     try:
-        page.wait_for_load_state('networkidle', timeout=10000)
+        page.wait_for_load_state('load', timeout=10000)
     except Exception:
         pass  # Proceed even if networkidle times out
 
@@ -532,7 +531,7 @@ def test_delete_example(page: Page, app_url: str) -> None:
 
     page.wait_for_timeout(800)
     try:
-        page.wait_for_load_state('networkidle', timeout=10000)
+        page.wait_for_load_state('load', timeout=10000)
     except Exception:
         pass  # Proceed even if networkidle times out
 

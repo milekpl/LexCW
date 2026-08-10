@@ -23,7 +23,7 @@ from playwright.sync_api import Page, expect
 def test_markdown_card_visible(page: Page, app_url: str) -> None:
     """The Markdown export card should be visible on the export page."""
     page.goto(f"{app_url}/export")
-    page.wait_for_load_state("networkidle")
+    page.wait_for_load_state("load")
 
     card = page.locator('.card-header h3:has-text("Markdown")')
     expect(card).to_be_visible()
@@ -44,7 +44,7 @@ def test_markdown_card_visible(page: Page, app_url: str) -> None:
 def test_markdown_export_basic(page: Page, app_url: str) -> None:
     """Basic export (no profile) should generate a valid .md file."""
     page.goto(f"{app_url}/export/markdown?title=Test+Dictionary")
-    page.wait_for_load_state("networkidle")
+    page.wait_for_load_state("load")
 
     alert = page.locator('.alert-success').first
     expect(alert).to_be_visible()
@@ -71,7 +71,7 @@ def test_markdown_export_basic(page: Page, app_url: str) -> None:
 def test_markdown_export_instructions(page: Page, app_url: str) -> None:
     """The download page should show pandoc instructions."""
     page.goto(f"{app_url}/export/markdown?title=Test")
-    page.wait_for_load_state("networkidle")
+    page.wait_for_load_state("load")
 
     content = page.content()
     assert 'pandoc' in content.lower()
@@ -83,7 +83,7 @@ def test_markdown_export_instructions(page: Page, app_url: str) -> None:
 def test_markdown_profile_selector_shown(page: Page, app_url: str) -> None:
     """Profile selector and options appear on the export page."""
     page.goto(f"{app_url}/export")
-    page.wait_for_load_state("networkidle")
+    page.wait_for_load_state("load")
 
     select = page.locator('#md_profile')
     expect(select).to_be_visible()
@@ -106,7 +106,7 @@ def test_markdown_profile_driven_export(page: Page, app_url: str) -> None:
         page.goto(
             f"{app_url}/export/markdown?title=Profile+Test&profile_id={profile_id}"
         )
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
 
         alert = page.locator('.alert-success').first
         expect(alert).to_be_visible()
@@ -147,7 +147,7 @@ def test_markdown_export_with_abbreviation_warnings(page: Page, app_url: str) ->
         page.goto(
             f"{app_url}/export/markdown?title=Warn+Test&profile_id={profile_id}"
         )
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
 
         # Should show success with warning count
         alert = page.locator('.alert-success').first

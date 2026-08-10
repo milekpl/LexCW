@@ -78,7 +78,12 @@ def test_entry_complex_components_and_variants_persist_in_correct_sections(
         except Exception:
             # Fallback: use force click to ensure submission
             page.click('#save-btn', force=True)
-        page.wait_for_load_state('networkidle')
+        # Wait for the save navigation to actually start/complete so the next
+        # page.goto doesn't race it (net::ERR_ABORTED).
+        try:
+            page.wait_for_url("**/entries/**status=saved*", timeout=10000)
+        except Exception:
+            page.wait_for_load_state('load')
 
         # Lookup created entry via search API to obtain the ID (allow indexing delay)
         found_id = None
@@ -445,13 +450,13 @@ def test_entry_complex_components_and_variants_persist_in_correct_sections(
                 }
             }
         }""")
-        page.wait_for_load_state('networkidle', timeout=10000)
+        page.wait_for_load_state('load', timeout=10000)
     except Exception as e:
         # If form submission fails, still try to find the entry via search as a fallback
         pass
 
     # Wait for navigation or success indicator – assume redirect back to entries list or view
-    page.wait_for_load_state('networkidle')
+    page.wait_for_load_state('load')
 
     # --- Verify via API that C exists and capture its id (may be auto-generated) ---
     # If server overwrote id, we still expect `complexEntryId` or some entry

@@ -198,11 +198,29 @@ def pristine_ranges_data() -> str:
 
 
 # ============================================================================
+# BASE-X SERVER (Session-scoped, in-memory/ramdisk)
+# ============================================================================
+
+@pytest.fixture(scope="session", autouse=True)
+def basex_server():
+    """Session-autouse: BaseX running on a ramdisk (/dev/shm) for the suite.
+
+    Keeps every database/index write in memory and starts once per session.
+    Reuses an already-running BaseX (e.g. the dev server) when present.
+    """
+    from tests.basex_test_utils import basex_server_context
+    with basex_server_context(port=int(os.getenv('BASEX_PORT', '1984'))) as started:
+        if started:
+            logger.info("Started in-memory BaseX server for e2e session")
+        yield
+
+
+# ============================================================================
 # FLASK SERVER INFRASTRUCTURE (Session-scoped, shared by all tests)
 # ============================================================================
 
 @pytest.fixture(scope="session")
-def flask_app_server(pristine_ranges_data: str):
+def flask_app_server(basex_server, pristine_ranges_data: str):
     """Session-scoped Flask server that stays running.
     
     - Runs PostgreSQL setup once (worksets database)
@@ -296,7 +314,10 @@ def flask_app_server(pristine_ranges_data: str):
         return port
     
     port = find_free_port()
-    server = make_server('127.0.0.1', port, app)
+    # Threaded server: a browser opens up to 6 parallel connections per host,
+    # and the single-threaded default overflows the request backlog, causing
+    # connection resets (net::ERR_ABORTED) — a source of e2e flakes.
+    server = make_server('127.0.0.1', port, app, threaded=True)
     server_thread = threading.Thread(target=server.serve_forever, daemon=True)
     server_thread.start()
     
@@ -338,30 +359,25 @@ def flask_app_server(pristine_ranges_data: str):
 
 
 # ============================================================================
-# PER-TEST DATABASE (Function-scoped, fresh for each test)
+# PER-TEST DATABASE (Pre-built once, reset via XQuery per test)
 # ============================================================================
 
-@pytest.fixture(scope="function")
-def test_database(request, pristine_lift_data: str, pristine_ranges_data: str):
-    """Create a fresh BaseX database for each test.
-    
-    - Unique database name per test
-    - Initialized with pristine LIFT data AND ranges
-    - Automatically cleaned up after test
-    - No snapshot/restore complexity
+@pytest.fixture(scope="session")
+def e2e_basex_database(basex_server, pristine_lift_data: str, pristine_ranges_data: str) -> str:
+    """Session-scoped pre-built BaseX DB (gold master), never dropped per test.
+
+    Created once with the pristine LIFT + ranges resources. Each test resets it
+    via fast XQuery updates (see ``test_database``) instead of DROP/CREATE,
+    which re-ran the disk indexer for every test — the main e2e slowness fix.
     """
     from app.database.basex_connector import BaseXConnector
-    
-    # Generate unique database name for this test
-    test_name = request.node.name
-    timestamp = time.strftime("%Y%m%d_%H%M%S")
-    unique_id = uuid.uuid4().hex[:8]
-    db_name = f"test_{timestamp}_{test_name}_{unique_id}"
-    
-    # Validate database name
-    if not is_safe_database_name(db_name):
-        db_name = generate_safe_db_name(test_type="e2e")
-    
+    from tests.basex_test_utils import _basex_reachable
+
+    if not _basex_reachable(int(os.getenv('BASEX_PORT', '1984'))):
+        pytest.skip("BaseX server not available")
+
+    db_name = generate_safe_db_name(test_type="e2e")
+
     connector = BaseXConnector(
         host=os.getenv('BASEX_HOST', 'localhost'),
         port=int(os.getenv('BASEX_PORT', '1984')),
@@ -369,20 +385,19 @@ def test_database(request, pristine_lift_data: str, pristine_ranges_data: str):
         password=os.getenv('BASEX_PASSWORD', 'admin'),
         database=None,
     )
-    
     try:
         connector.connect()
-        
+
         # Drop if exists (cleanup from failed previous run)
         try:
             connector.execute_command(f"DROP DB {db_name}")
         except:
             pass
-        
-        # Create fresh database
+
+        # Create the gold database once for the whole session
         connector.create_database(db_name)
-        logger.info(f"Created test database: {db_name}")
-        
+        logger.info(f"Pre-built e2e BaseX database: {db_name}")
+
         # Add pristine LIFT data
         # NOTE: Use add_resource() instead of execute_command("ADD file.xml")
         # because BaseX runs in Docker and cannot access the host filesystem.
@@ -392,31 +407,38 @@ def test_database(request, pristine_lift_data: str, pristine_ranges_data: str):
         # Add pristine ranges data
         connector.add_resource("pristine_ranges.xml", pristine_ranges_data, db_name=db_name)
         logger.info(f"Loaded pristine ranges data into {db_name}")
-        
+
         connector.disconnect()
-        
+
         yield db_name
-        
+
     finally:
-        # Cleanup: Drop test database with retries in case of transient locks
+        # Cleanup: drop the gold DB once at session end (best-effort)
         try:
             connector.connect()
-            max_retries = 3
-            for attempt in range(1, max_retries + 1):
-                try:
-                    connector.execute_command(f"DROP DB {db_name}")
-                    logger.info(f"Dropped test database: {db_name}")
-                    break
-                except Exception as drop_err:
-                    if attempt == max_retries:
-                        logger.warning(f"Failed to drop test database {db_name} after {attempt} attempts: {drop_err}")
-                    else:
-                        logger.info(f"Retrying drop DB {db_name} (attempt {attempt}/{max_retries}) due to: {drop_err}")
-                        import time as _time
-                        _time.sleep(0.5 * attempt)
+            try:
+                connector.execute_command(f"DROP DB {db_name}")
+            except:
+                pass
             connector.disconnect()
         except Exception as e:
-            logger.warning(f"Failed to connect/disconnect during cleanup for {db_name}: {e}")
+            logger.warning(f"Failed to drop gold database {db_name} at session end: {e}")
+
+
+@pytest.fixture(scope="function")
+def test_database(e2e_basex_database: str, pristine_lift_data: str, pristine_ranges_data: str) -> str:
+    """Per-test database = shared gold DB reset via XQuery (no DROP/CREATE).
+
+    Each test sees pristine data; the DB stays open, so the per-test cost is a
+    couple of tiny XQuery updates instead of a full database index build.
+    """
+    from tests.basex_test_utils import reset_basex_database
+
+    reset_basex_database(e2e_basex_database, [
+        ("pristine_lift.xml", pristine_lift_data),
+        ("pristine_ranges.xml", pristine_ranges_data),
+    ])
+    return e2e_basex_database
 
 
 # ============================================================================
