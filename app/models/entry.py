@@ -1353,6 +1353,12 @@ class Entry(BaseModel):
         """
         Update an existing entry from a dictionary, preserving LIFT data.
 
+        Structured collections (relations, senses, etymologies, variants) are
+        coerced into their model objects — the LIFT serializer reads attributes
+        (``relation.type``), not dict keys. Raw dicts coming from ``to_dict()``
+        snapshots (undo/redo, bulk rollback) previously crashed
+        ``_prepare_entry_xml``.
+
         Args:
             data: Dictionary containing updated data.
         """
@@ -1371,6 +1377,60 @@ class Entry(BaseModel):
             elif key == 'lexical_unit':
                 # Update lexical_unit but preserve morph_type from LIFT
                 self.lexical_unit = value if isinstance(value, dict) else {'en': value}
+            elif key == 'relations':
+                self.relations = [
+                    r if isinstance(r, Relation) else Relation(**r)
+                    for r in (value or []) if isinstance(r, (dict, Relation))
+                ]
+            elif key == 'variant_relations':
+                # to_dict() snapshots already include variant relations inside
+                # 'relations' — skip them there to avoid duplication. When only
+                # variant_relations is provided, rebuild relations from it
+                # (a fresh list — never append to stale pre-update relations).
+                if 'relations' not in data:
+                    rebuilt = []
+                    for vr in (value or []):
+                        if isinstance(vr, dict):
+                            rebuilt.append(Relation(
+                                type=vr.get('type', '_component-lexeme'),
+                                ref=vr['ref'],
+                                traits={'variant-type': vr.get('variant_type', '')},
+                                order=vr.get('order', len(rebuilt)),
+                            ))
+                    self.relations = rebuilt
+            elif key == 'senses':
+                from app.models.sense import Sense
+                coerced_senses = []
+                for s in (value or []):
+                    if isinstance(s, Sense):
+                        coerced_senses.append(s)
+                    elif isinstance(s, dict):
+                        sense_obj = Sense(**s)
+                        # Mirror Entry.__init__: explicit ids are flagged so
+                        # validation doesn't treat them as auto-generated.
+                        sense_obj._has_explicit_id = 'id' in s
+                        coerced_senses.append(sense_obj)
+                self.senses = coerced_senses
+            elif key == 'etymologies':
+                coerced_etymologies = []
+                for e in (value or []):
+                    if isinstance(e, Etymology):
+                        coerced_etymologies.append(e)
+                    elif isinstance(e, dict):
+                        # Etymology requires type/source/form/gloss — default
+                        # missing keys so legacy dicts don't blow up.
+                        e = dict(e)
+                        e.setdefault('type', '')
+                        e.setdefault('source', '')
+                        e.setdefault('form', {})
+                        e.setdefault('gloss', {})
+                        coerced_etymologies.append(Etymology(**e))
+                self.etymologies = coerced_etymologies
+            elif key == 'variants':
+                self.variants = [
+                    v if isinstance(v, Variant) else Variant(**v)
+                    for v in (value or []) if isinstance(v, (dict, Variant))
+                ]
             else:
                 setattr(self, key, value)
 

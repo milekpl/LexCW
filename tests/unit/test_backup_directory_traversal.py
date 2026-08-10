@@ -51,18 +51,23 @@ class TestBackupDirectoryTraversalSafety:
         assert "instance" in str(backup_dir)
 
     def test_backup_directory_accepts_absolute_tmp_path(self, mock_connector):
-        """Backup manager defaults to instance/ for paths outside the app."""
-        # Even /tmp is rejected as a safety measure - backups should stay within the project
-        unsafe_path = "/tmp/backups"
-        
+        """Absolute paths are an explicit, legitimate backup destination."""
+        # A dedicated backup disk/mount keeps backups off the same disk as the
+        # database — the working-directory confinement only applies to
+        # relative paths (no '..' escapes).
+        absolute_path = "/tmp/backups"
+        Path(absolute_path).mkdir(parents=True, exist_ok=True)
+
         manager = BaseXBackupManager(
             basex_connector=mock_connector,
-            backup_directory=unsafe_path
+            backup_directory=absolute_path
         )
-        
+
         backup_dir = manager.get_backup_directory()
-        # Should default to instance/backups (the safe default)
-        assert "instance" in str(backup_dir)
+        assert str(backup_dir) == absolute_path
+        # Clean up
+        import shutil
+        shutil.rmtree(absolute_path, ignore_errors=True)
 
     def test_ranges_sidecar_only_deletes_within_backup_directory(self, mock_connector):
         """The _write_ranges_sidecar method must NOT delete files outside backup_directory."""

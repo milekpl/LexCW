@@ -519,17 +519,32 @@ class WorksetService:
 
         entry_dict = entry.to_dict() if hasattr(entry, "to_dict") else dict(entry)
 
+        # Apply the proposal by mutating the fetched Entry object directly.
+        # (Rebuilding via Entry.from_dict(entry.to_dict()) would duplicate
+        # variant relations — to_dict emits both 'relations' and the derived
+        # 'variant_relations', and Entry.__init__ appends both.)
         if proposal_type == "ipa" or field_name == "pronunciation":
+            # Model field is 'pronunciations' (a {lang: text} dict), not
+            # 'pronunciation' — writing the latter would silently drop the value.
+            pronunciations = dict(getattr(entry, "pronunciations", None) or {})
             if isinstance(proposed_val, dict):
-                entry_dict["pronunciation"] = proposed_val
+                pronunciations.update(proposed_val)
             elif isinstance(proposed_val, str):
-                entry_dict["pronunciation"] = {"ipa": proposed_val, "lang": "seh-fonipa"}
+                pronunciations["seh-fonipa"] = proposed_val
+            entry.pronunciations = pronunciations
         elif proposal_type == "pos" or field_name == "grammatical_info":
-            entry_dict["grammatical_info"] = str(proposed_val)
+            entry.grammatical_info = str(proposed_val)
         elif field_name:
-            entry_dict[field_name] = proposed_val
+            setattr(entry, field_name, proposed_val)
 
-        updated_entry = dictionary_service.update_entry(entry_id, entry_dict)
+        # Revision snapshot must reflect the applied state.
+        entry_dict = entry.to_dict()
+
+        # Fix: update_entry expects an Entry object — the old positional call
+        # (entry_id, entry_dict) crashed with "'str' object has no attribute
+        # 'validate'". Apply with draft validation (matching the original
+        # call's draft-mode intent).
+        dictionary_service.update_entry(entry, draft=True)
 
         from app.services.entry_revision_service import EntryRevisionService
         try:

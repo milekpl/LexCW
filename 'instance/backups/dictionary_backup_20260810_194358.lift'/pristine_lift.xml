@@ -1,0 +1,35 @@
+<lift version="0.13">
+    <entry id="test_entry_1" guid="00000000-0000-0000-0000-000000000001" dateCreated="2025-01-01T12:00:00Z" dateModified="2025-01-01T12:00:00Z">
+        <lexical-unit>
+            <form lang="en"><text>cat</text></form>
+        </lexical-unit>
+        <sense id="test_sense_1">
+            <grammatical-info value="Noun"/>
+            <definition>
+                <form lang="en"><text>A small domesticated carnivorous mammal</text></form>
+            </definition>
+        </sense>
+    </entry>
+    <entry id="test_entry_2" guid="00000000-0000-0000-0000-000000000002" dateCreated="2025-01-01T12:00:00Z" dateModified="2025-01-01T12:00:00Z">
+        <lexical-unit>
+            <form lang="en"><text>dog</text></form>
+        </lexical-unit>
+        <sense id="test_sense_2">
+            <grammatical-info value="Noun"/>
+            <definition>
+                <form lang="en"><text>A domesticated carnivorous mammal</text></form>
+            </definition>
+        </sense>
+    </entry>
+    <entry id="test_entry_3" guid="00000000-0000-0000-0000-000000000003" dateCreated="2025-01-01T12:00:00Z" dateModified="2025-01-01T12:00:00Z">
+        <lexical-unit>
+            <form lang="en"><text>run</text></form>
+        </lexical-unit>
+        <sense id="test_sense_3">
+            <grammatical-info value="Verb"/>
+            <definition>
+                <form lang="en"><text>To move at a speed faster than walking</text></form>
+            </definition>
+        </sense>
+    </entry>
+</lift>

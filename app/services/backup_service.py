@@ -76,9 +76,17 @@ class BackupService:
             "created": datetime.utcnow().isoformat(),
         }
 
-        if current_app.config.get("TESTING"):
+        if current_app.config.get("TESTING") and not current_app.config.get("E2E_TESTING"):
             return self._create_backup_sync(
                 db_name, backup_type, description, include_media, op_id
+            )
+
+        if current_app.config.get("E2E_TESTING"):
+            # E2E tests: run the REAL backup (real BaseX serialization), but
+            # synchronously so the test can assert on the produced artifacts
+            # without racing a background thread.
+            return self._create_backup_async(
+                db_name, backup_type, description, include_media, op_id, wait=True
             )
 
         return self._create_backup_async(
@@ -159,8 +167,14 @@ class BackupService:
         description: str,
         include_media: bool,
         op_id: str,
+        wait: bool = False,
     ) -> Tuple[Dict[str, Any], str]:
-        """Asynchronous backup for production mode."""
+        """Asynchronous backup for production mode.
+
+        With ``wait=True`` (used by E2E tests) the real backup runs
+        synchronously in the current context and the full metadata dict is
+        returned instead of a placeholder.
+        """
         app_obj = current_app._get_current_object()
 
         def _run():
@@ -181,6 +195,7 @@ class BackupService:
                         logger.exception(
                             "Failed to write backup op result for %s", op_id
                         )
+                    return bkp
                 except Exception as bg_e:
                     logger.exception("Background backup failed: %s", bg_e)
                     try:
@@ -190,6 +205,11 @@ class BackupService:
                         }
                     except Exception as e:
                         logger.debug(f"Caught exception: {e}")
+                    raise
+
+        if wait:
+            bkp = _run()
+            return bkp.to_dict(), op_id
 
         t = threading.Thread(target=_run, daemon=True)
         t.start()
@@ -409,12 +429,162 @@ class BackupService:
         return operations
 
     def undo_last_operation(self) -> Optional[Dict[str, Any]]:
-        """Undo the last operation."""
+        """
+        Undo the last operation — actually restores the affected entry data
+        from the operation's before-snapshot, then moves the op to the redo stack.
+        """
+        op = self._peek_undo()
+        if op is None:
+            return None
+        self._apply_operation(op, redo=False)
         return self.operation_service.undo_last_operation()
 
     def redo_last_operation(self) -> Optional[Dict[str, Any]]:
-        """Redo the last undone operation."""
+        """
+        Redo the last undone operation — re-applies the operation's after-state
+        to the affected entry, then moves the op back to the undo stack.
+        """
+        op = self._peek_redo()
+        if op is None:
+            return None
+        self._apply_operation(op, redo=True)
         return self.operation_service.redo_last_operation()
+
+    # ------------------------------------------------------------------
+    # Real undo/redo data restoration
+    # ------------------------------------------------------------------
+
+    def _peek_undo(self) -> Optional[Dict[str, Any]]:
+        stack = self.operation_service.get_undo_stack()
+        return stack[-1] if stack else None
+
+    def _peek_redo(self) -> Optional[Dict[str, Any]]:
+        stack = self.operation_service.get_redo_stack()
+        return stack[-1] if stack else None
+
+    @staticmethod
+    def _op_snapshot(op: Dict[str, Any], key: str) -> Optional[Dict[str, Any]]:
+        """Extract a snapshot dict from an operation record.
+
+        Operations store ``data`` as a JSON string (or dict); snapshots live
+        under ``data['before']`` / ``data['after']``. Returns None if absent.
+        """
+        raw = op.get('data')
+        if isinstance(raw, str):
+            try:
+                data = json.loads(raw)
+            except (ValueError, TypeError):
+                data = {}
+        else:
+            data = raw or {}
+        return data.get(key)
+
+    def _apply_operation(self, op: Dict[str, Any], redo: bool) -> None:
+        """Restore entry data for an undo/redo, using full-entry snapshots."""
+        from app.services.dictionary_service import DictionaryService
+
+        op_type = op.get('type_') or op.get('type') or 'update'
+        ds = current_app.injector.get(DictionaryService)
+
+        # Merge/split operations have their own restore semantics (re-split a
+        # merge, re-merge a split) and carry full before-snapshots — delegate
+        # to MergeSplitService.
+        if op_type in ('split', 'merge', 'merge_senses'):
+            from app.services.merge_split_service import MergeSplitService
+            mss = current_app.injector.get(MergeSplitService)
+            if redo:
+                mss.redo_merge_split_operation(op)
+            else:
+                mss.undo_merge_split_operation(op)
+            return
+
+        if redo:
+            # Re-apply: update -> after-state; create -> re-create; delete -> delete again
+            if op_type == 'create':
+                self._restore_create(ds, self._op_snapshot(op, 'after'))
+            elif op_type == 'delete':
+                self._restore_delete(ds, self._op_snapshot(op, 'before'))
+            elif op_type == 'update':
+                self._restore_update(ds, self._op_snapshot(op, 'after'))
+            else:
+                raise ValidationError(
+                    f"Cannot redo operation of type '{op_type}' (no restore logic)"
+                )
+        else:
+            # Undo: create -> delete; delete -> re-create; update -> before-state
+            if op_type == 'create':
+                self._restore_delete(ds, self._op_snapshot(op, 'after'))
+            elif op_type == 'delete':
+                self._restore_create(ds, self._op_snapshot(op, 'before'))
+            elif op_type == 'update':
+                self._restore_update(ds, self._op_snapshot(op, 'before'))
+            else:
+                raise ValidationError(
+                    f"Cannot undo operation of type '{op_type}' (no restore logic)"
+                )
+
+    def _restore_update(self, ds, snapshot: Optional[Dict[str, Any]]) -> None:
+        """Write a snapshot back to an existing entry (undo of an update)."""
+        if not snapshot or not snapshot.get('id'):
+            raise ValidationError(
+                "Operation cannot be undone: it has no entry snapshot data"
+            )
+        entry_id = snapshot['id']
+        try:
+            entry = ds.get_entry(entry_id)
+        except Exception as not_found:
+            if 'not found' in str(not_found).lower():
+                raise ValidationError(
+                    f"Entry '{entry_id}' no longer exists — cannot restore its state"
+                ) from not_found
+            raise
+        if entry is None:
+            raise ValidationError(
+                f"Entry '{entry_id}' no longer exists — cannot restore its state"
+            )
+        entry.update_from_dict(snapshot)
+        # skip_validation: restore the exact snapshot state.
+        # Bidirectional relations are NOT skipped: update_entry diffs this
+        # snapshot against the current database state and removes/restores the
+        # reverse relations on OTHER entries, so the relation graph stays
+        # consistent after undo/redo (not just this entry's own relations).
+        ds.update_entry(
+            entry, skip_validation=True, skip_bidirectional=False, record_history=False
+        )
+
+    def _restore_create(self, ds, snapshot: Optional[Dict[str, Any]]) -> None:
+        """Re-create an entry from a snapshot (undo of a delete)."""
+        from app.models.entry import Entry
+
+        if not snapshot or not snapshot.get('id'):
+            raise ValidationError(
+                "Operation cannot be undone: it has no entry snapshot data"
+            )
+        entry = Entry.from_dict(snapshot)
+        try:
+            ds.create_entry(
+                entry, draft=True, skip_validation=True, record_history=False
+            )
+        except ValidationError as ve:
+            if 'already exists' in str(ve):
+                # Entry already present — nothing to restore.
+                return
+            raise
+
+    def _restore_delete(self, ds, snapshot: Optional[Dict[str, Any]]) -> None:
+        """Delete an entry (undo of a create / redo of a delete)."""
+        entry_id = snapshot.get('id') if snapshot else None
+        if not entry_id:
+            raise ValidationError(
+                "Operation cannot be undone: it has no entry snapshot data"
+            )
+        try:
+            ds.delete_entry(entry_id, record_history=False)
+        except Exception as exc:
+            if 'not found' in str(exc).lower():
+                # Entry already gone — nothing to delete.
+                return
+            raise
 
 
 def _ensure_backup_ops() -> None:

@@ -41,6 +41,25 @@ from app.utils.exceptions import (
 from app.utils.constants import DB_NAME_NOT_CONFIGURED
 from app.utils.data_copier import DataCopier
 from app.utils.db_utils import safe_commit, escape_xquery_string
+
+
+def _xml_attr(value) -> str:
+    """Escape a value for use inside an XML attribute in a generated XQuery.
+
+    ``escape_xquery_string`` only doubles single quotes (correct for XQuery
+    string literals); it does NOT escape ``&``/``<``/``>``/``"``/``'``, which
+    are invalid raw in literal XML attribute text. This helper produces valid
+    XML attribute content (matching single-quoted attribute syntax used in the
+    generated nodes).
+    """
+    return (
+        str(value)
+        .replace('&', '&amp;')
+        .replace('<', '&lt;')
+        .replace('>', '&gt;')
+        .replace('"', '&quot;')
+        .replace("'", '&apos;')
+    )
 from app.utils.xquery_builder import XQueryBuilder
 from app.utils.namespace_manager import LIFTNamespaceManager
 
@@ -1041,7 +1060,7 @@ class DictionaryService:
             self.logger.error("Error in get_entries_by_ids: %s", e)
             return []
 
-    def create_entry(self, entry: Entry, draft: bool = False, skip_validation: bool = False, project_id: Optional[int] = None) -> str:
+    def create_entry(self, entry: Entry, draft: bool = False, skip_validation: bool = False, project_id: Optional[int] = None, record_history: bool = True) -> str:
         """
         Create a new entry.
 
@@ -1050,6 +1069,8 @@ class DictionaryService:
             draft: If True, use draft validation mode (allows saving incomplete entries).
             skip_validation: If True, skip validation entirely (for manual saves of partial work).
             project_id: Optional project ID to determine database.
+            record_history: If False, do not record an operation in undo history
+                (used for compensating undo/redo writes themselves).
 
         Returns:
             ID of the created entry.
@@ -1093,11 +1114,23 @@ class DictionaryService:
 
             self.db_connector.execute_update(query)
 
-            # Record operation in history
-            if self.history_service:
+            # Ensure bidirectional consistency: a created entry's bidirectional
+            # relations must add their reverse relations to the target entries.
+            try:
+                self._handle_bidirectional_relations(
+                    entry, None, project_id=project_id
+                )
+            except Exception as be:
+                self.logger.warning(
+                    f"Bidirectional relation sync failed for created entry "
+                    f"{entry.id}: {be}"
+                )
+
+            # Record operation in history (full snapshot so undo can re-create)
+            if self.history_service and record_history:
                 self.history_service.record_operation(
                     operation_type='create',
-                    data={'id': entry.id, 'lexical_unit': entry.lexical_unit},
+                    data={'after': entry.to_dict()},
                     entry_id=entry.id,
                     db_name=self.db_connector.database
                 )
@@ -1111,7 +1144,7 @@ class DictionaryService:
             self.logger.error("Error creating entry: %s", str(e))
             raise DatabaseError(f"Failed to create entry: {str(e)}") from e
 
-    def update_entry(self, entry: Entry, draft: bool = False, skip_validation: bool = False, skip_bidirectional: bool = False, project_id: Optional[int] = None) -> None:
+    def update_entry(self, entry: Entry, draft: bool = False, skip_validation: bool = False, skip_bidirectional: bool = False, project_id: Optional[int] = None, record_history: bool = True) -> None:
         """
         Update an existing entry.
 
@@ -1121,6 +1154,8 @@ class DictionaryService:
             skip_validation: If True, skip validation entirely (allows saving partial work).
             skip_bidirectional: If True, do not process bidirectional relation creation for this update.
             project_id: Optional project ID to determine database.
+            record_history: If False, do not record an operation in undo history
+                (used for compensating undo/redo writes themselves).
 
         Raises:
             NotFoundError: If the entry does not exist.
@@ -1169,11 +1204,15 @@ class DictionaryService:
 
             self.db_connector.execute_update(query)
 
-            # Record operation in history
-            if self.history_service:
+            # Record operation in history (full before/after snapshots so undo
+            # can restore the pre-update state)
+            if self.history_service and record_history:
                 self.history_service.record_operation(
                     operation_type='update',
-                    data={'id': entry.id, 'lexical_unit': entry.lexical_unit},
+                    data={
+                        'before': previous_entry.to_dict() if previous_entry else None,
+                        'after': entry.to_dict(),
+                    },
                     entry_id=entry.id,
                     db_name=self.db_connector.database
                 )
@@ -1212,6 +1251,19 @@ class DictionaryService:
 
         db_name = self._resolve_db_name(project_id)
 
+        # Relation identity includes the relation's traits (but NOT order — order
+        # is positional per entry and is never mirrored on the reverse). This
+        # makes the diff trait-aware: a trait-only change on a forward relation
+        # is detected and the reverse relation is updated to mirror the new
+        # traits, instead of silently staying stale.
+        def _relation_traits(relation) -> tuple:
+            traits = getattr(relation, 'traits', None)
+            if isinstance(relation, dict):
+                traits = relation.get('traits', {})
+            if isinstance(traits, dict):
+                return tuple(sorted(traits.items()))
+            return ()
+
         # Collect all reverse relation inserts needed (entry-level)
         inserts = []
         new_entry_rels = set()
@@ -1220,20 +1272,20 @@ class DictionaryService:
             rel_type = getattr(relation, 'type', relation.get('type', '') if isinstance(relation, dict) else '')
             rel_ref = getattr(relation, 'ref', relation.get('ref', '') if isinstance(relation, dict) else '')
             if rel_ref:
-                new_entry_rels.add((rel_type, str(rel_ref)))
+                new_entry_rels.add((rel_type, str(rel_ref), _relation_traits(relation)))
 
         if previous_entry is not None:
             for relation in previous_entry.relations:
                 rel_type = getattr(relation, 'type', relation.get('type', '') if isinstance(relation, dict) else '')
                 rel_ref = getattr(relation, 'ref', relation.get('ref', '') if isinstance(relation, dict) else '')
                 if rel_ref:
-                    old_entry_rels.add((rel_type, str(rel_ref)))
+                    old_entry_rels.add((rel_type, str(rel_ref), _relation_traits(relation)))
 
         # additions (forward exists, reverse missing)
-        for rel_type, rel_ref in new_entry_rels:
+        for rel_type, rel_ref, traits in new_entry_rels:
             if rel_ref and is_relation_bidirectional(rel_type, self):
                 reverse_rel_type = get_reverse_relation_type(rel_type, self)
-                inserts.append((rel_ref, reverse_rel_type, rel_type))
+                inserts.append((rel_ref, reverse_rel_type, rel_type, traits))
 
         # removals (forward was removed, reverse should not exist)
         removed_entry_rels = old_entry_rels - new_entry_rels
@@ -1256,7 +1308,7 @@ class DictionaryService:
                     rel_type = getattr(relation, 'type', relation.get('type', '') if isinstance(relation, dict) else '')
                     rel_ref = getattr(relation, 'ref', relation.get('ref', '') if isinstance(relation, dict) else '')
                     if rel_ref:
-                        new_sense_rels.add((str(source_sense_id), rel_type, str(rel_ref)))
+                        new_sense_rels.add((str(source_sense_id), rel_type, str(rel_ref), _relation_traits(relation)))
 
         if previous_entry is not None:
             for sense in previous_entry.senses:
@@ -1270,16 +1322,16 @@ class DictionaryService:
                         rel_type = getattr(relation, 'type', relation.get('type', '') if isinstance(relation, dict) else '')
                         rel_ref = getattr(relation, 'ref', relation.get('ref', '') if isinstance(relation, dict) else '')
                         if rel_ref:
-                            old_sense_rels.add((str(source_sense_id), rel_type, str(rel_ref)))
+                            old_sense_rels.add((str(source_sense_id), rel_type, str(rel_ref), _relation_traits(relation)))
 
         removed_sense_rels = old_sense_rels - new_sense_rels
 
-        for source_sense_id, rel_type, target_sense_id in new_sense_rels:
+        for source_sense_id, rel_type, target_sense_id, traits in new_sense_rels:
             if target_sense_id and is_relation_bidirectional(rel_type, self):
                 reverse_rel_type = get_reverse_relation_type(rel_type, self)
-                sense_inserts.append((target_sense_id, reverse_rel_type, source_sense_id))
+                sense_inserts.append((target_sense_id, reverse_rel_type, source_sense_id, traits))
 
-        for source_sense_id, rel_type, target_sense_id in removed_sense_rels:
+        for source_sense_id, rel_type, target_sense_id, _traits in removed_sense_rels:
             if target_sense_id and is_relation_bidirectional(rel_type, self):
                 reverse_rel_type = get_reverse_relation_type(rel_type, self)
                 sense_deletions.append((target_sense_id, reverse_rel_type, source_sense_id))
@@ -1296,23 +1348,15 @@ class DictionaryService:
 
         # Determine namespace prefix for constructing elements
         rel_prefix = relation_path.split(':')[0] if ':' in relation_path else ''
-        if rel_prefix:
-            rel_ctor = f"<{rel_prefix}:relation type='{{type}}' ref='{{ref}}'/>"
-        else:
-            rel_ctor = "<relation type='{type}' ref='{ref}'/>"
 
         # --- 1) Remove dangling reverse relations for deleted forwards ---
         deletion_clauses: list[str] = []
         escaped_entry_id = escape_xquery_string(entry.id)
 
-        for rel_type, target_entry_id in removed_entry_rels:
+        for rel_type, target_entry_id, _traits in removed_entry_rels:
             reverse_rel_type = get_reverse_relation_type(rel_type, self)
             escaped_target_entry = escape_xquery_string(str(target_entry_id))
             escaped_rev_type = escape_xquery_string(reverse_rel_type)
-            if rel_prefix:
-                ctor = rel_ctor.format(type=escaped_rev_type, ref=escaped_entry_id)
-            else:
-                ctor = rel_ctor.format(type=escaped_rev_type, ref=escaped_entry_id)
 
             # delete nodes: targetEntry/{relation_path}[@type=rev & @ref=sourceEntry]
             deletion_clauses.append(
@@ -1335,28 +1379,59 @@ class DictionaryService:
 
         # --- 2) Add missing reverse relations for existing forwards ---
         add_clauses: list[str] = []
-        for target_entry_id, reverse_rel_type, _forward_type in inserts:
+        for target_entry_id, reverse_rel_type, _forward_type, traits in inserts:
             escaped_target = escape_xquery_string(str(target_entry_id))
             escaped_type = escape_xquery_string(reverse_rel_type)
             escaped_source_entry = escaped_entry_id
+            # Mirror the forward relation's traits on the reverse so a
+            # trait-only change is reconciled (remove+reinsert) rather than
+            # leaving a stale reverse. Attribute values must be XML-escaped
+            # (trait values are user-controlled free text).
+            trait_xml = ''.join(
+                f"<{rel_prefix}:trait name='{_xml_attr(name)}' "
+                f"value='{_xml_attr(value)}'/>" if rel_prefix else
+                f"<trait name='{_xml_attr(name)}' "
+                f"value='{_xml_attr(value)}'/>"
+                for name, value in traits
+            )
             if rel_prefix:
-                insert_node = f"<{rel_prefix}:relation type='{escaped_type}' ref='{escaped_source_entry}'/>"
+                insert_node = (
+                    f"<{rel_prefix}:relation type='{_xml_attr(reverse_rel_type)}' "
+                    f"ref='{_xml_attr(entry.id)}'>{trait_xml}</{rel_prefix}:relation>"
+                )
             else:
-                insert_node = f"<relation type='{escaped_type}' ref='{escaped_source_entry}'/>"
+                insert_node = (
+                    f"<relation type='{_xml_attr(reverse_rel_type)}' "
+                    f"ref='{_xml_attr(entry.id)}'>{trait_xml}</relation>"
+                )
             add_clauses.append(
                 f"let $e := {C}//{entry_path}[@id='{escaped_target}']\n"
                 f"let $forward := $e/{relation_path}[@type='{escaped_type}' and @ref='{escaped_source_entry}']\n"
                 f"return ( if (empty($forward)) then insert node {insert_node} into $e else () )"
             )
 
-        for target_sense_id, reverse_rel_type, source_sense_id in sense_inserts:
+        for target_sense_id, reverse_rel_type, source_sense_id, traits in sense_inserts:
             escaped_target_sid = escape_xquery_string(target_sense_id)
             escaped_source_sid = escape_xquery_string(source_sense_id)
             escaped_rev_type = escape_xquery_string(reverse_rel_type)
+            trait_xml = ''.join(
+                f"<{rel_prefix}:trait name='{_xml_attr(name)}' "
+                f"value='{_xml_attr(value)}'/>" if rel_prefix else
+                f"<trait name='{_xml_attr(name)}' "
+                f"value='{_xml_attr(value)}'/>"
+                for name, value in traits
+            )
             if rel_prefix:
-                insert_node = f"<{rel_prefix}:relation type='{escaped_rev_type}' ref='{escaped_source_sid}'/>"
+                insert_node = (
+                    f"<{rel_prefix}:relation type='{_xml_attr(reverse_rel_type)}' "
+                    f"ref='{_xml_attr(source_sense_id)}'>{trait_xml}"
+                    f"</{rel_prefix}:relation>"
+                )
             else:
-                insert_node = f"<relation type='{escaped_rev_type}' ref='{escaped_source_sid}'/>"
+                insert_node = (
+                    f"<relation type='{_xml_attr(reverse_rel_type)}' "
+                    f"ref='{_xml_attr(source_sense_id)}'>{trait_xml}</relation>"
+                )
             add_clauses.append(
                 f"let $s := {C}//{sense_path}[@id='{escaped_target_sid}']\n"
                 f"let $rel := $s/{relation_path}[@type='{escaped_rev_type}' and @ref='{escaped_source_sid}']\n"
@@ -1381,7 +1456,7 @@ class DictionaryService:
                 return s in ("true", "1") or (s != "" and s != "false")
 
             # Entry-level symmetry checks
-            for rel_type, target_entry_id in new_entry_rels:
+            for rel_type, target_entry_id, _traits in new_entry_rels:
                 if not target_entry_id or checks_done >= max_checks:
                     break
                 if not is_relation_bidirectional(rel_type, self):
@@ -1404,7 +1479,7 @@ class DictionaryService:
                 checks_done += 1
 
             # Sense-level symmetry checks
-            for source_sense_id, rel_type, target_sense_id in new_sense_rels:
+            for source_sense_id, rel_type, target_sense_id, _traits in new_sense_rels:
                 if not target_sense_id or checks_done >= max_checks:
                     break
                 if not is_relation_bidirectional(rel_type, self):
@@ -1512,13 +1587,15 @@ class DictionaryService:
             self.logger.error("Error checking if entry exists %s: %s", entry_id, str(e))
             raise DatabaseError(f"Failed to check if entry exists: {str(e)}") from e
 
-    def delete_entry(self, entry_id: str, project_id: Optional[int] = None) -> bool:
+    def delete_entry(self, entry_id: str, project_id: Optional[int] = None, record_history: bool = True) -> bool:
         """
         Delete an entry by ID.
 
         Args:
             entry_id: ID of the entry to delete.
             project_id: Optional project ID to determine database.
+            record_history: If False, do not record an operation in undo history
+                (used for compensating undo/redo writes themselves).
 
         Returns:
             True if the entry was deleted successfully.
@@ -1547,6 +1624,10 @@ class DictionaryService:
             if not self.entry_exists(entry_id, project_id=project_id):
                 raise NotFoundError(f"Entry with ID '{entry_id}' not found")
 
+            # Capture the full pre-delete state so the delete can be undone
+            # (re-created from the snapshot).
+            entry_before = self.get_entry(entry_id, project_id=project_id)
+
             # Detect namespace usage
             has_namespace = self._detect_namespace_usage()
             query = self._query_builder.build_delete_entry_query(
@@ -1555,11 +1636,33 @@ class DictionaryService:
 
             self.db_connector.execute_update(query)
 
-            # Record operation in history
-            if self.history_service:
+            # Remove reverse relations pointing at the deleted entry from other
+            # entries — otherwise deleting an entry leaves dangling relations
+            # (and undo-of-create would leave stale reverses behind).
+            if entry_before is not None:
+                try:
+                    import copy as _copy
+                    bare = _copy.deepcopy(entry_before)
+                    bare.relations = []
+                    for _sense in bare.senses:
+                        try:
+                            _sense.relations = []
+                        except Exception:
+                            pass
+                    self._handle_bidirectional_relations(
+                        bare, entry_before, project_id=project_id
+                    )
+                except Exception as be:
+                    self.logger.warning(
+                        f"Failed to clean reverse relations for deleted entry "
+                        f"{entry_id}: {be}"
+                    )
+
+            # Record operation in history (full snapshot so undo can re-create)
+            if self.history_service and record_history:
                 self.history_service.record_operation(
                     operation_type='delete',
-                    data={'id': entry_id},
+                    data={'before': entry_before.to_dict() if entry_before else {'id': entry_id}},
                     entry_id=entry_id,
                     db_name=self.db_connector.database
                 )

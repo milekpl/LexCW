@@ -69,7 +69,8 @@ class OperationHistoryService:
             data=data,
             entry_id=data.get('entry_id'),
             user_id='autosave',  # System user for autosaves
-            db_name=None
+            db_name=None,
+            to_undo_stack=False,  # autosaves must not pollute the undo/redo stacks
         )
 
     def _load_from_disk(self):
@@ -104,16 +105,23 @@ class OperationHistoryService:
         self._history_cache = data
         self._atomic_write(data)
 
-    def record_operation(self, operation_type: str, data: Dict[str, Any], entry_id: Optional[str] = None, user_id: Optional[str] = None, db_name: Optional[str] = None):
+    def record_operation(self, operation_type: str, data: Dict[str, Any], entry_id: Optional[str] = None, user_id: Optional[str] = None, db_name: Optional[str] = None, to_undo_stack: bool = True):
         """
         Record an operation in the history for potential undo/redo.
 
         Args:
             operation_type: Type of operation ('create', 'update', 'delete', 'merge', 'split')
-            data: Dictionary containing operation details needed for undo/redo
+            data: Dictionary containing operation details needed for undo/redo.
+                  For reversible operations this should contain full entry
+                  snapshots — ``{'before': {...}, 'after': {...}}`` for updates,
+                  ``{'after': {...}}`` for creates and ``{'before': {...}}`` for
+                  deletes — so undo/redo can restore actual data.
             entry_id: ID of the affected entry (if applicable)
             user_id: ID of the user who performed the operation
             db_name: Name of the database where operation was performed
+            to_undo_stack: If False, the operation is recorded in the history log
+                  only and is NOT pushed onto the undo stack (used for autosaves
+                  and other background events that must not be user-undoable).
         """
         with self._file_lock:
             history = self._read_history()
@@ -134,11 +142,12 @@ class OperationHistoryService:
             if len(history['operations']) > self.max_history:
                 history['operations'] = history['operations'][-self.max_history:]
 
-            # Add to undo stack
-            history['undo_stack'].append(operation.to_dict())
+            if to_undo_stack:
+                # Add to undo stack
+                history['undo_stack'].append(operation.to_dict())
 
-            # Clear redo stack since we're adding a new operation
-            history['redo_stack'] = []
+                # Clear redo stack since we're adding a new operation
+                history['redo_stack'] = []
 
             self._write_history(history)
 

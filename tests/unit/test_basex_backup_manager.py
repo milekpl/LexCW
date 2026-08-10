@@ -16,17 +16,19 @@ class FakeConnector:
             self.database = cmd.split(' ', 1)[1]
             return True
         if cmd.startswith('EXPORT '):
-            # Extract path from EXPORT command: format is "EXPORT 'path'"
-            # BaseX EXPORT command exports currently opened database to the specified path
+            # Real BaseX EXPORT writes each resource as a file INSIDE the
+            # (pre-existing) target directory — simulate that faithfully.
             path_part = cmd[7:].strip()  # Remove 'EXPORT ' prefix
             # Remove quotes if present
             path = path_part.strip("'\"")
             p = Path(path)
-            # Create parent directory if it doesn't exist
-            p.parent.mkdir(parents=True, exist_ok=True)
-            # Create a simple .lift file to simulate export
-            with open(p, 'w', encoding='utf-8') as f:
-                f.write('<?xml version="1.0"?><lift version="0.13"><entry id="test_entry"><lexical-unit><form lang="en"><text>test</text></form></lexical-unit></entry></lift>')
+            p.mkdir(parents=True, exist_ok=True)
+            (p / 'simulated_resource.xml').write_text(
+                '<?xml version="1.0"?><lift version="0.13"><entry id="test_entry">'
+                '<lexical-unit><form lang="en"><text>test</text></form></lexical-unit>'
+                '</entry></lift>',
+                encoding='utf-8',
+            )
             return True
         return True
 
@@ -94,31 +96,35 @@ class TestBaseXBackupManager:
         """Test successful database backup."""
         # Mock the execute_command method to return success
         self.mock_basex_connector.execute_command.return_value = "Backup successful"
-        
-        # Create a mock backup file
-        backup_file = os.path.join(self.temp_dir, 'test_db_backup_20250101_120000.lift')
-        with open(backup_file, 'w') as f:
-            f.write('<lift version="0.13"></lift>')
-        
+
         db_name = 'test_db'
         backup = self.backup_manager.backup_database(db_name, 'full', 'Test backup')
-        
+
         # Verify the backup was created
         assert backup.db_name == db_name
         assert backup.type == 'full'
         assert backup.description == 'Test backup'
         assert backup.status == 'completed'
-        assert backup.file_path == backup_file
+        assert backup.file_path.endswith('.lift')
         assert backup.file_size > 0
-        
+
+        # Each backup call creates a NEW timestamped file (old files are never
+        # silently reused/overwritten).
+        files = [
+            f for f in os.listdir(self.temp_dir)
+            if f.startswith('test_db_backup_') and f.endswith('.lift')
+        ]
+        assert len(files) == 1, f"Expected exactly one new backup file, got {files}"
+
         # Verify the command was executed (may be called multiple times for ranges)
         self.mock_basex_connector.execute_command.assert_called()
 
         # display_name should prefer the description
         assert backup.to_dict().get('display_name') == 'Test backup'
-        
+
         # Clean up the file
-        os.remove(backup_file)
+        for f in files:
+            os.remove(os.path.join(self.temp_dir, f))
     
     def test_backup_database_failure(self):
         """Test database backup failure."""
@@ -336,40 +342,65 @@ class TestBaseXBackupManager:
         assert b.get('display_name') == 'This is a description'
     
     def test_restore_database_success(self):
-        """Test successful database restore."""
-        # Mock the execute_command method to return success for both commands
-        self.mock_basex_connector.execute_command.side_effect = ["Drop successful", "Create successful"]
-        
+        """Test successful database restore (atomic: temp DB import, probe, swap)."""
         # Create a mock backup file
         backup_file = os.path.join(self.temp_dir, 'restore_test.lift')
         with open(backup_file, 'w') as f:
-            f.write('<lift version="0.13"></lift>')
-        
+            f.write('<lift version="0.13"><entry id="cat"/></lift>')
+
         db_name = 'test_db'
         result = self.backup_manager.restore_database(db_name, 'backup_id123', backup_file)
-        
+
         assert result is True
-        
-        # Verify the commands were called
-        assert self.mock_basex_connector.execute_command.call_count == 2
-        # First call should be to drop the database
+
+        # The backup must be imported into a temporary database first...
+        self.mock_basex_connector.create_database.assert_called()
+        self.mock_basex_connector.add_resource.assert_called()
+        # ...and verified queryable before the live DB is touched.
+        self.mock_basex_connector.execute_query.assert_called()
+        # Only then is the live DB dropped and the temp DB renamed into place.
         self.mock_basex_connector.execute_command.assert_any_call(f"DROP DB {db_name}")
-        # Second call should be to create the database from the backup file
-        self.mock_basex_connector.execute_command.assert_called_with(f"CREATE DB {db_name} {backup_file}")
-    
+        alter_calls = [
+            c for c in self.mock_basex_connector.execute_command.call_args_list
+            if 'ALTER DB' in str(c)
+        ]
+        assert alter_calls, "Expected an ALTER DB (temp -> live) call"
+
     def test_restore_database_failure(self):
-        """Test database restore failure."""
-        # Mock the execute_command method to raise an exception
-        self.mock_basex_connector.execute_command.side_effect = DatabaseError("Restore failed")
-        
+        """Test database restore failure — a failed import must NOT drop the live DB."""
+        # Make the import into the temp database fail
+        self.mock_basex_connector.add_resource.side_effect = DatabaseError("Import failed")
+
         backup_file = os.path.join(self.temp_dir, 'restore_test.lift')
         with open(backup_file, 'w') as f:
-            f.write('<lift version="0.13"></lift>')
-        
+            f.write('<lift version="0.13"><entry id="cat"/></lift>')
+
         db_name = 'test_db'
-        
+
         with pytest.raises(DatabaseError):
             self.backup_manager.restore_database(db_name, 'backup_id123', backup_file)
+
+        # The live database must never have been dropped
+        drop_calls = [
+            c for c in self.mock_basex_connector.execute_command.call_args_list
+            if f'DROP DB {db_name}' in str(c)
+        ]
+        assert not drop_calls, "Live DB was dropped even though the import failed"
+
+    def test_restore_rejects_multi_root_backup(self):
+        """Old multi-root backup files must be rejected BEFORE anything is dropped."""
+        # Simulate a pre-fix backup: several root elements concatenated.
+        backup_file = os.path.join(self.temp_dir, 'old_backup.lift')
+        with open(backup_file, 'w') as f:
+            f.write('<lift version="0.13"><entry id="a"/></lift>'
+                    '<lift-ranges><range id="x"/></lift-ranges>')
+
+        with pytest.raises(ValidationError):
+            self.backup_manager.restore_database('test_db', 'old_id', backup_file)
+
+        # Nothing was created, dropped, or renamed.
+        assert not self.mock_basex_connector.create_database.called
+        assert not self.mock_basex_connector.execute_command.called
     
     def test_cleanup_old_backups(self):
         """Test cleaning up old backups."""
@@ -393,3 +424,40 @@ class TestBaseXBackupManager:
         # Now should have only 5 backups
         remaining_backups = self.backup_manager.list_backups(db_name)
         assert len(remaining_backups) == 5
+
+    def test_recover_orphaned_restore_databases_renames_back(self):
+        """Orphaned <db>_restore_* DBs are renamed back when the live DB is absent."""
+        self.mock_basex_connector.execute_query.return_value = (
+            "dictionary mydb_restore_20250101_120000_abc123 notes"
+        )
+
+        recovered = self.backup_manager.recover_orphaned_restore_databases()
+
+        assert recovered == ['mydb']
+        self.mock_basex_connector.execute_command.assert_called_once_with(
+            "ALTER DB mydb_restore_20250101_120000_abc123 mydb"
+        )
+
+    def test_recover_orphaned_restore_databases_keeps_when_live_exists(self):
+        """When the live DB exists, the orphan is left untouched (no clobbering)."""
+        self.mock_basex_connector.execute_query.return_value = (
+            "mydb mydb_restore_20250101_120000_abc123"
+        )
+
+        recovered = self.backup_manager.recover_orphaned_restore_databases()
+
+        assert recovered == []
+        # Only the db:list query ran; no ALTER/DROP was issued
+        for call in self.mock_basex_connector.execute_command.call_args_list:
+            assert 'ALTER' not in str(call), f"Unexpected command: {call}"
+
+    def test_recover_orphaned_restore_databases_ignores_unrelated_dbs(self):
+        """Databases that are not restore temp names are never touched."""
+        self.mock_basex_connector.execute_query.return_value = (
+            "dictionary backup_20250101_120000 archive"
+        )
+
+        recovered = self.backup_manager.recover_orphaned_restore_databases()
+
+        assert recovered == []
+        assert not self.mock_basex_connector.execute_command.called

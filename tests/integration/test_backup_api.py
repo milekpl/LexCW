@@ -353,41 +353,53 @@ class TestBackupAPI:
             assert data.get('success') is True
             assert not file_path.exists()
 
-        def test_restore_endpoint_applies_settings_and_profiles(self, client, app):
-            """Restore endpoint should apply settings and display profiles from backup."""
-            with app.app_context():
-                from flask import current_app
-                from app.services.basex_backup_manager import BaseXBackupManager
+    def test_restore_endpoint_applies_settings_and_profiles(self, client, app):
+        """Restore endpoint should apply settings and display profiles from backup."""
+        from pathlib import Path
+        with app.app_context():
+            from flask import current_app
+            from app.services.basex_backup_manager import BaseXBackupManager
 
-                backup_manager = current_app.injector.get(BaseXBackupManager)
-                backup_dir = backup_manager.get_backup_directory()
+            backup_manager = current_app.injector.get(BaseXBackupManager)
+            backup_dir = backup_manager.get_backup_directory()
 
-                # Create a directory backup artifact with settings and profiles
-                dir_name = 'restore_dir_backup_20251216_090000.lift'
-                dir_path = backup_dir / dir_name
-                dir_path.mkdir(parents=True, exist_ok=True)
-                (dir_path / 'part1.lift').write_text('<lift version="0.13"></lift>', encoding='utf-8')
-                settings = {'project_name': 'RestoreProject', 'source_language': {'code': 'zz', 'name': 'Zz'}}
-                (dir_path / (dir_path.name + '.settings.json')).write_text(json.dumps([settings]), encoding='utf-8')
-                (dir_path / (dir_path.name + '.display_profiles.json')).write_text(json.dumps({'profiles': [{'name': 'Restored'}]}), encoding='utf-8')
+            # Create a directory backup artifact with settings
+            dir_name = 'restore_dir_backup_20251216_090000.lift'
+            dir_path = backup_dir / dir_name
+            dir_path.mkdir(parents=True, exist_ok=True)
+            (dir_path / 'part1.lift').write_text('<lift version="0.13"></lift>', encoding='utf-8')
+            settings = {'project_name': 'RestoreProject', 'source_language': {'code': 'zz', 'name': 'Zz'}}
+            # Sidecars live NEXT TO the backup path (restore reads them there)
+            (backup_dir / (dir_name + '.settings.json')).write_text(json.dumps([settings]), encoding='utf-8')
 
-                meta = {'id': 'restore_dir_20251216_090000', 'db_name': 'restore_dir'}
-                (backup_dir / (dir_name + '.meta.json')).write_text(json.dumps(meta), encoding='utf-8')
+            meta = {'id': 'restore_dir_20251216_090000', 'db_name': 'restore_dir'}
+            (backup_dir / (dir_name + '.meta.json')).write_text(json.dumps(meta), encoding='utf-8')
 
-                # Call restore endpoint
-                resp = client.post(f"/api/backup/restore/{meta['id']}", json={'db_name': 'restored_db', 'backup_file_path': str(dir_path)})
-                assert resp.status_code == 200
-                data = json.loads(resp.data)
-                assert data.get('success') is True
+            # Call restore endpoint
+            resp = client.post(f"/api/backup/restore/{meta['id']}", json={'db_name': 'restored_db', 'backup_file_path': str(dir_path)})
+            assert resp.status_code == 200, resp.data[:500]
+            data = json.loads(resp.data)
+            assert data.get('success') is True
 
-                # Verify settings applied (source language should be updated)
-                cfg = current_app.config_manager
-                src = cfg.get_source_language()
-                assert src.get('code') == 'zz'
+            # Verify settings applied (source language should be updated)
+            cfg = current_app.config_manager
+            src = cfg.get_source_language()
+            assert src.get('code') == 'zz'
 
-                # Verify display profiles restored
-                dp_path = Path(current_app.instance_path) / 'display_profiles.json'
-                assert dp_path.exists()
+            # Restore must NOT clobber the app's display profiles storage file
+            # (the sidecar format is incompatible and would break app startup).
+            dp_path = Path(current_app.instance_path) / 'display_profiles.json'
+            assert not dp_path.exists(), (
+                "Restore must not write instance/display_profiles.json"
+            )
+
+            # Clean up the restored database
+            try:
+                from app.database.basex_connector import BaseXConnector
+                conn = current_app.injector.get(BaseXConnector)
+                conn.execute_command("DROP DB restored_db")
+            except Exception:
+                pass
 
     def test_restore_with_invalid_validation_rules_returns_400(self, client, app):
         """If validation_rules.json in the backup fails schema validation, endpoint should 400."""

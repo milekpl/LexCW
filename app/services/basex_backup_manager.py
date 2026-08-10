@@ -5,8 +5,11 @@ Service for managing BaseX database backups and restores.
 import os
 import json
 import logging
+import re
 import shutil
 import time
+import uuid
+import xml.etree.ElementTree as ET
 from datetime import datetime
 from typing import Optional, Dict, Any, List
 from pathlib import Path
@@ -44,6 +47,72 @@ class BaseXBackupManager:
         
         # Ensure backup directory exists
         self.backup_directory.mkdir(parents=True, exist_ok=True)
+
+    @staticmethod
+    def _validate_db_name(db_name: str) -> None:
+        """Reject database names that could break out of BaseX command syntax.
+
+        ``db_name`` is interpolated into OPEN/collection/DROP/ALTER commands;
+        BaseX itself only allows a restricted character set, so anything else
+        is either invalid or an injection attempt.
+        """
+        if not db_name or not re.fullmatch(r'[A-Za-z0-9_\-]+', str(db_name)):
+            raise ValidationError(f"Invalid database name: {db_name!r}")
+
+    def recover_orphaned_restore_databases(self) -> List[str]:
+        """Recover databases stranded by a crash during restore.
+
+        ``restore_database`` swaps databases with ``DROP DB <name>`` followed by
+        ``ALTER DB <tmp> <name>``. A hard crash between those two commands leaves
+        the recovered data under a ``<name>_restore_<ts>_<rand>`` temporary
+        database with no live database. This sweep renames such orphans back to
+        their base name — but only when the live database is absent (never
+        clobbering newer data).
+
+        Returns:
+            List of database names that were recovered.
+        """
+        recovered: List[str] = []
+        try:
+            raw = self.basex_connector.execute_query("xquery db:list()")
+            dbs = [d.strip() for d in (raw or "").split() if d.strip()]
+        except Exception as e:
+            self.logger.error(f"Failed to list databases for orphan recovery: {e}")
+            return recovered
+
+        pattern = re.compile(r'^(.+)_restore_\d{8}_\d{6}_[0-9a-f]{6}$')
+        for db in dbs:
+            match = pattern.match(db)
+            if not match:
+                continue
+            base_name = match.group(1)
+            try:
+                self._validate_db_name(base_name)
+            except ValidationError:
+                self.logger.warning(
+                    f"Skipping orphan '{db}': derived base name {base_name!r} "
+                    f"is not a valid database name"
+                )
+                continue
+            if base_name in dbs:
+                # Live DB exists — the orphan is a leftover from a failed
+                # restore attempt; leave both for manual inspection.
+                self.logger.warning(
+                    f"Orphaned restore temp DB '{db}' found, but live DB "
+                    f"'{base_name}' exists — leaving both untouched"
+                )
+                continue
+            try:
+                self.basex_connector.execute_command(f"ALTER DB {db} {base_name}")
+                self.logger.info(
+                    f"Recovered orphaned restore temp DB '{db}' -> '{base_name}'"
+                )
+                recovered.append(base_name)
+            except Exception as e:
+                self.logger.error(
+                    f"Failed to recover orphaned restore temp DB '{db}': {e}"
+                )
+        return recovered
 
     def _validate_backup_directory(self, backup_dir: str) -> str:
         """
@@ -88,37 +157,19 @@ class BaseXBackupManager:
             return backup_dir
 
         # ---- Absolute path handling -----------------------------------
-        # Allow absolute paths inside the system temporary directory only
-        # when they look like pytest-created or mkdtemp-like directories.
-        import tempfile
-
-        tmpdir = Path(tempfile.gettempdir()).resolve()
+        # Absolute paths are an explicit, legitimate configuration — e.g. a
+        # dedicated backup disk/mount, which keeps backups off the same disk
+        # as the database (true disaster recovery). The working-directory
+        # confinement above still protects against relative-path '..' escapes.
         try:
-            in_tmp = tmpdir in resolved.parents or resolved == tmpdir
-        except (OSError, RuntimeError):
-            in_tmp = False
-
-        if in_tmp:
-            looks_like_pytest = any(
-                p.name.startswith("pytest-") for p in resolved.parents
+            path.mkdir(parents=True, exist_ok=True)
+            return backup_dir
+        except Exception:
+            self.logger.warning(
+                f"Absolute backup path not usable: {backup_dir} -> {resolved}. "
+                f"Using default instance/backups instead."
             )
-            looks_like_mkdtemp = path.name.startswith("tmp")
-            if looks_like_pytest or looks_like_mkdtemp:
-                try:
-                    path.mkdir(parents=True, exist_ok=True)
-                    return backup_dir
-                except Exception:
-                    self.logger.warning(
-                        f"Temporary absolute backup path not usable: {backup_dir}. "
-                        f"Using default instance/backups instead."
-                    )
-                    return "instance/backups"
-
-        self.logger.warning(
-            f"Absolute backup path not allowed: {backup_dir} -> {resolved}. "
-            f"Using default instance/backups instead."
-        )
-        return "instance/backups"
+            return "instance/backups"
 
     def get_backup_directory(self) -> Path:
         """
@@ -230,6 +281,7 @@ class BaseXBackupManager:
         """
         if backup_type not in ['full', 'incremental', 'manual']:
             raise ValidationError(f"Invalid backup type: {backup_type}")
+        self._validate_db_name(db_name)
 
         timestamp = datetime.utcnow()
         filename = f"{db_name}_backup_{timestamp.strftime('%Y%m%d_%H%M%S')}.lift"
@@ -238,22 +290,7 @@ class BaseXBackupManager:
         file_found = False
 
         try:
-            # If a matching backup file already exists (e.g., created externally or by tests),
-            # prefer using the newest existing file rather than creating a new one.
-            existing_files = list(self.backup_directory.glob(f"{db_name}_backup_*.lift"))
-            if existing_files:
-                try:
-                    newest = max(existing_files, key=lambda p: p.stat().st_mtime)
-                    filepath = newest
-                    file_found = True
-                    self.logger.info(f"Using existing backup file for database {db_name}: {filepath}")
-                except Exception:
-                    # fallback to normal behavior
-                    pass
-
-            # If we haven't found a file yet, attempt to retrieve DB content using a query
-            if not file_found:
-                self.logger.info(f"Creating backup using query approach for database: {db_name}")
+            self.logger.info(f"Creating backup using query approach for database: {db_name}")
 
             # Use the same approach as the dictionary service export_lift method to get full content
             # Query the entire database content properly
@@ -261,9 +298,19 @@ class BaseXBackupManager:
                 # Ensure we're working with the right database
                 self.basex_connector.execute_command(f"OPEN {db_name}")
 
-                # Use BaseX query to extract all content as one XML document
-                # Use XQUERY to iterate over all documents in the collection
-                query = f"for $doc in collection('{db_name}') return $doc"
+                # Serialize the ENTIRE database as ONE well-formed XML document so the
+                # backup file can be re-imported (CREATE DB / restore). Each resource
+                # document becomes a child of a single <lift> root; the app queries
+                # entries and ranges with //-based selectors, so functional layout is
+                # preserved. Previously the query concatenated every resource root as
+                # sibling elements, producing a MULTI-ROOT file ("junk after document
+                # element") that BaseX could not parse back — restore would DROP the
+                # live database and then fail to recreate it (data loss).
+                query = (
+                    f"<lift version=\"0.13\">"
+                    f"{{ for $doc in collection('{db_name}') return $doc/node() }}"
+                    f"</lift>"
+                )
                 db_content = self.basex_connector.execute_query(query)
 
                 # If the result is empty, try alternative approach
@@ -283,41 +330,50 @@ class BaseXBackupManager:
                         db_content = None
             except Exception as e:
                 self.logger.warning(f"Query approach failed, falling back to export: {e}")
-                # Fall back to the export command approach; pass the full path so server exports to expected location
-                export_command = f"EXPORT '{str(filepath)}'"
+                # BaseX's EXPORT writes each resource as a file into a
+                # DIRECTORY and resolves paths RELATIVE TO ITS OWN CWD
+                # (absolute paths are silently ignored). Export to a bare
+                # directory name, locate it in the server's CWD (the same
+                # filesystem in a single-machine deployment), and reassemble
+                # the resources into ONE well-formed <lift> document.
+                export_name = filepath.name + ".export_tmp"
                 try:
-                    self.basex_connector.execute_command(export_command)
-                except Exception:
-                    # Some connectors might accept only filename; try filename-only as last resort
-                    try:
-                        self.basex_connector.execute_command(f"EXPORT '{filepath.name}'")
-                    except Exception as e:
-                        self.logger.debug(f"Could not export with filename only: {e}")
+                    # NB: BaseX EXPORT does NOT accept quoted paths (quotes are
+                    # treated literally and the export silently no-ops).
+                    # export_name is derived from the validated db name, so it
+                    # only contains safe characters (alnum, _ - .).
+                    self.basex_connector.execute_command(f"EXPORT {export_name}")
+                except Exception as export_err:
+                    self.logger.debug(f"EXPORT command failed: {export_err}")
 
-                # Wait and check if file exists (assume it was created in BaseX server's directory)
-                import time
-                time.sleep(1)
+                export_dir = Path.cwd() / export_name
+                if not export_dir.is_dir():
+                    raise DatabaseError(
+                        f"Backup via EXPORT failed (no export dir written by "
+                        f"the server); query serialization failed earlier: {e}"
+                    )
+                try:
+                    pieces = []
+                    for res in sorted(export_dir.iterdir()):
+                        if res.is_file():
+                            pieces.append(res.read_text(encoding="utf-8"))
+                    if not pieces:
+                        raise DatabaseError("EXPORT produced no files")
 
-                # Since we don't know where BaseX put the file, try to locate it
-                if filepath.exists() and filepath.stat().st_size > 0:
+                    filepath.parent.mkdir(parents=True, exist_ok=True)
+                    filepath.write_text(
+                        '<lift version="0.13">' + "".join(pieces) + "</lift>",
+                        encoding="utf-8",
+                    )
                     file_found = True
-                    self.logger.info(f"Backup created using export command: {filepath}")
-                else:
-                    # If the file still isn't at the expected location, try to find it elsewhere
-                    # Look for files created in the last few minutes with similar names
-                    import os
-                    from datetime import timedelta
-                    all_backup_files = list(self.backup_directory.glob(f"{db_name}_backup_*.lift"))
-                    for backup_file in all_backup_files:
-                        file_mtime = datetime.fromtimestamp(backup_file.stat().st_mtime)
-                        if ((timestamp - timedelta(minutes=5)) <= file_mtime <= (timestamp + timedelta(minutes=5))) and backup_file.stat().st_size > 0:
-                            filepath = backup_file
-                            file_found = True
-                            self.logger.info(f"Found backup file at different location: {filepath}")
-                            break
+                    self.logger.info(
+                        f"Backup created via export (reassembled): {filepath}"
+                    )
+                finally:
+                    shutil.rmtree(export_dir, ignore_errors=True)
 
-                    if not file_found:
-                        raise DatabaseError(f"Backup file was not created at {filepath}")
+                if not file_found:
+                    raise DatabaseError(f"Backup file was not created at {filepath}")
             else:
                 # Content was retrieved successfully via query
                 # Write the content to our backup file
@@ -408,6 +464,7 @@ class BaseXBackupManager:
         backup_path = Path(backup_file_path)
         if not backup_path.exists():
             raise ValidationError(f"Backup file does not exist: {backup_path}")
+        self._validate_db_name(db_name)
 
         # Check for invalid validation rules before doing anything
         vr_path = backup_path.with_name(backup_path.name + '.validation_rules.json')
@@ -420,23 +477,96 @@ class BaseXBackupManager:
                 raise ValidationError(f"Invalid validation rules in backup: {e}")
 
         try:
-            # First, drop the existing database
+            # ---- Atomic restore: import into a temp DB, validate, then swap ----
+            # The live database is only dropped AFTER the backup file has been
+            # successfully imported and verified, so a bad/corrupt/old backup file
+            # can never destroy the current data.
+            if backup_path.is_dir():
+                # Directory-style backup (legacy EXPORT fallback): use the newest
+                # non-test .lift file inside it as the content source.
+                lift_files = [
+                    f for f in backup_path.rglob('*.lift')
+                    if f.is_file() and not f.name.startswith('test_')
+                ]
+                if not lift_files:
+                    raise ValidationError(
+                        f"Backup directory contains no .lift file: {backup_path}"
+                    )
+                content_path = max(lift_files, key=lambda p: p.stat().st_mtime)
+            else:
+                content_path = backup_path
+
+            backup_content = content_path.read_text(encoding='utf-8')
+
+            # 1. The backup must be a single well-formed XML document. Backups
+            #    written before the multi-root fix are rejected here — safely,
+            #    before anything is dropped.
             try:
-                # Use the connector's execute_command if available, fallback to class method for tests
-                if hasattr(self.basex_connector, 'execute_command'):
-                    self.basex_connector.execute_command(f"DROP DB {db_name}")
-                else:
-                    BaseXConnector.execute_command(self.basex_connector, f"DROP DB {db_name}")
+                ET.fromstring(backup_content)
+            except ET.ParseError as pe:
+                raise ValidationError(
+                    f"Backup file is not a well-formed XML document and cannot be "
+                    f"restored (it may be an old multi-root backup): {pe}"
+                ) from pe
+
+            temp_db = (
+                f"{db_name}_restore_"
+                f"{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:6]}"
+            )
+
+            # 2. Import into a temporary database (in-process add_resource, so the
+            #    file is read by the app, not by BaseX's own filesystem).
+            self.basex_connector.create_database(temp_db)
+            self.basex_connector.add_resource('lift.xml', backup_content, db_name=temp_db)
+
+            # 3. Verify the temp DB is queryable before touching the live DB.
+            probe = self.basex_connector.execute_query(
+                f"xquery count(collection('{temp_db}')//entry)"
+            )
+            if probe is None or str(probe).strip() == '':
+                raise DatabaseError(
+                    f"Restored database is empty or unqueryable: {temp_db}"
+                )
+
+            # 4. Swap: drop the live DB, then rename the validated temp DB into place.
+            preserve_temp = False
+            try:
+                self.basex_connector.execute_command(f"DROP DB {db_name}")
             except Exception as e:
                 # Database might not exist, which is fine
                 self.logger.debug(f"DROP DB failed (expected if DB doesn't exist): {e}")
-
-            # Import the backup file back into BaseX
-            import_command = f"CREATE DB {db_name} {backup_path}"
-            if hasattr(self.basex_connector, 'execute_command'):
-                self.basex_connector.execute_command(import_command)
-            else:
-                BaseXConnector.execute_command(self.basex_connector, import_command)
+            try:
+                self.basex_connector.execute_command(f"ALTER DB {temp_db} {db_name}")
+            except Exception as e:
+                # Recovery: recreate the live DB directly from the file content.
+                self.logger.error(f"ALTER DB failed, attempting direct recreation: {e}")
+                try:
+                    self.basex_connector.create_database(db_name)
+                    self.basex_connector.add_resource(
+                        'lift.xml', backup_content, db_name=db_name
+                    )
+                except Exception as r2:
+                    preserve_temp = True
+                    # Never leave an empty live DB behind if the recovery
+                    # partially succeeded (create_database OK but add_resource
+                    # failed) — drop it so the app doesn't silently serve an
+                    # empty dictionary.
+                    try:
+                        self.basex_connector.execute_command(f"DROP DB {db_name}")
+                    except Exception:
+                        pass
+                    raise DatabaseError(
+                        f"Restore failed after dropping the live database. The "
+                        f"recovered data is preserved in temporary database "
+                        f"'{temp_db}': {r2}"
+                    ) from r2
+            finally:
+                # Clean up the temp DB unless it was preserved as the recovery copy.
+                if not preserve_temp:
+                    try:
+                        self.basex_connector.execute_command(f"DROP DB {temp_db}")
+                    except Exception:
+                        pass
             
             # Restore supplementary files
             try:
@@ -464,13 +594,18 @@ class BaseXBackupManager:
                     self.logger.warning(f"Failed to restore settings: {se}")
 
             # 2. Display Profiles
+            # NOTE: intentionally NOT copied back to instance/display_profiles.json.
+            # CSSMappingService cannot load the serialized DisplayProfile shape
+            # (the 'elements' relationship dicts crash _load_profiles), so writing
+            # the sidecar there breaks app startup on the next boot. Profiles are
+            # preserved in the backup artifact and the display_profiles DB table.
             dp_backup = backup_path.with_name(backup_path.name + '.display_profiles.json')
             if dp_backup.exists():
-                try:
-                    shutil.copy2(dp_backup, instance_path / 'display_profiles.json')
-                    self.logger.info("Restored display profiles from backup")
-                except Exception as dpe:
-                    self.logger.warning(f"Failed to restore display profiles: {dpe}")
+                self.logger.warning(
+                    "Skipping display-profiles restore: sidecar format is "
+                    "incompatible with CSSMappingService storage and would "
+                    "corrupt instance/display_profiles.json"
+                )
 
             # 3. Validation Rules
             if vr_path.exists():
@@ -860,24 +995,24 @@ class BaseXBackupManager:
             Number of backups deleted
         """
         all_backups = self.list_backups(db_name)
-        
+
         if len(all_backups) <= keep_count:
             return 0  # Nothing to delete
-        
+
         # Keep the most recent backups and delete the rest
         backups_to_delete = all_backups[keep_count:]
         deleted_count = 0
-        
+
         for backup in backups_to_delete:
             try:
-                file_path = Path(backup['file_path'])
-                if file_path.exists():
-                    file_path.unlink()  # Delete the file
+                # delete_backup removes the file AND its sidecars/metadata, so
+                # pruned backups don't linger as ghost entries in history.
+                if self.delete_backup(backup['id']):
                     deleted_count += 1
-                    self.logger.info(f"Deleted old backup: {file_path}")
+                    self.logger.info(f"Deleted old backup: {backup['file_path']}")
             except Exception as e:
                 self.logger.error(f"Failed to delete backup {backup['file_path']}: {str(e)}")
-        
+
         return deleted_count
 
     def _write_ranges_sidecar(self, lift_path: Path, db_name: str) -> None:
@@ -1056,10 +1191,19 @@ class BaseXBackupManager:
             src = Path(current_app.instance_path) / 'display_profiles.json'
             if src.exists() and src.is_file():
                 content = src.read_text(encoding='utf-8')
-                # Validate it's not just stub data
+                # Validate it's not just stub data. The instance file is stored
+                # as a plain LIST of profile dicts (CSSMappingService._save_profiles),
+                # but older writers also produced {'profiles': [...]} — accept both.
                 try:
                     data = json.loads(content)
-                    if data and data.get('profiles') and len(data['profiles']) > 0 and not (len(data['profiles']) == 1 and data['profiles'][0].get('name') == 'default'):
+                    profiles_list = data.get('profiles') if isinstance(data, dict) else data
+                    if (
+                        isinstance(profiles_list, list)
+                        and len(profiles_list) > 0
+                        and all(isinstance(p, dict) for p in profiles_list)
+                        and not (len(profiles_list) == 1
+                                 and profiles_list[0].get('name') == 'default')
+                    ):
                         dp_path.write_text(content, encoding='utf-8')
                         self.logger.info("Used display profiles from instance file")
                         return
@@ -1276,31 +1420,33 @@ class BaseXBackupManager:
 
     def delete_backup(self, backup_id: str) -> bool:
         """Delete a backup by ID.
-        
+
+        Resolves the backup via its metadata file (handles any id format,
+        including the UUID ids produced by real backups) and removes the
+        backup file (or directory) together with its sidecar files.
+
         Args:
-            backup_id: Backup ID in format {db_name}_{timestamp}
-            
+            backup_id: ID of the backup to delete.
+
         Returns:
             True if deleted successfully, False otherwise
         """
         try:
-            # Parse backup ID to extract filename
-            parts = backup_id.split('_')
-            if len(parts) < 3:
+            info = self.get_backup_by_id(backup_id)
+            if not info or not info.get('file_path'):
                 return False
-                
-            timestamp_part = '_'.join(parts[-2:])
-            db_name = '_'.join(parts[:-2])
-            filename = f"{db_name}_backup_{timestamp_part}.lift"
-            file_path = self.backup_directory / filename
-            
+            file_path = Path(info['file_path'])
+
             deleted_any = False
-            
-            # Remove main backup file
+
+            # Remove main backup file or directory
             if file_path.exists():
-                file_path.unlink()
+                if file_path.is_dir():
+                    shutil.rmtree(file_path, ignore_errors=True)
+                else:
+                    file_path.unlink()
                 deleted_any = True
-                
+
             # Remove sidecar files
             sidecars = [
                 Path(str(file_path) + '.ranges.xml'),
@@ -1308,9 +1454,10 @@ class BaseXBackupManager:
                 Path(str(file_path) + '.display_profiles.json'),
                 Path(str(file_path) + '.validation_rules.json'),
                 Path(str(file_path) + '.settings.json'),
-                Path(str(file_path) + '.meta.json')
+                Path(str(file_path) + '.meta.json'),
+                Path(str(file_path) + '.media'),
             ]
-            
+
             for sidecar in sidecars:
                 try:
                     if sidecar.exists():
@@ -1321,10 +1468,10 @@ class BaseXBackupManager:
                         deleted_any = True
                 except Exception as e:
                     self.logger.debug(f"Caught exception: {e}")
-            
-            # Note: We do NOT delete the shared 'self.backup_directory / "lift-ranges"' 
+
+            # Note: We do NOT delete the shared 'self.backup_directory / "lift-ranges"'
             # as it might be used by other backups or the system.
-                    
+
             return deleted_any
         except Exception:
             return False

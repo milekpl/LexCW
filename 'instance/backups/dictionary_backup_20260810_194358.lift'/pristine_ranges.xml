@@ -1,0 +1,106 @@
+<lift-ranges version="0.13">
+    <range id="grammatical-info">
+        <range-element id="Noun" guid="5049f0e3-12a4-4e9f-97f7-60091082793c">
+            <label>
+                <form lang="en"><text>Noun</text></form>
+            </label>
+            <abbrev>
+                <form lang="en"><text>n</text></form>
+            </abbrev>
+        </range-element>
+        <range-element id="Verb" guid="5049f0e3-12a4-4e9f-97f7-60091082793d">
+            <label>
+                <form lang="en"><text>Verb</text></form>
+            </label>
+            <abbrev>
+                <form lang="en"><text>v</text></form>
+            </abbrev>
+        </range-element>
+        <range-element id="Adjective" guid="5049f0e3-12a4-4e9f-97f7-60091082793e">
+            <label>
+                <form lang="en"><text>Adjective</text></form>
+            </label>
+            <abbrev>
+                <form lang="en"><text>adj</text></form>
+            </abbrev>
+        </range-element>
+        <!-- Two classes of real FieldWorks duplicate, both seeded here:
+             1. EXACT duplicate (same id AND same guid, the two `...a1` elements): pure
+                FieldWorks export noise. The ranges API removes these from served data
+                (app/services/ranges_dedup). Exercised by test_ranges_duplicates_api.
+             2. id CONFLICT (same id, DIFFERENT guid: `...a1` vs `...a2`): ambiguous, NOT
+                auto-removed (needs a user decision), so it still reaches the form and makes
+                the flattened option list contain a repeated `value` — which regresses any
+                range x-for keyed on opt.value (Alpine drops the whole list on duplicate
+                :key). Exercised by test_range_duplicate_keys. See spec §11.2 / §15.1. -->
+        <range-element id="Pronoun" guid="5049f0e3-12a4-4e9f-97f7-6009108279a1">
+            <label>
+                <form lang="en"><text>Pronoun</text></form>
+            </label>
+        </range-element>
+        <range-element id="Pronoun" guid="5049f0e3-12a4-4e9f-97f7-6009108279a1">
+            <label>
+                <form lang="en"><text>Pronoun</text></form>
+            </label>
+        </range-element>
+        <range-element id="Pronoun" guid="5049f0e3-12a4-4e9f-97f7-6009108279a2">
+            <label>
+                <form lang="en"><text>Pronoun</text></form>
+            </label>
+        </range-element>
+    </range>
+    <range id="lexical-relation">
+        <range-element id="Synonym" guid="5049f0e3-12a4-4e9f-97f7-60091082793f"/>
+        <range-element id="Antonym" guid="5049f0e3-12a4-4e9f-97f7-600910827940"/>
+    </range>
+    <range id="variant-type">
+        <range-element id="Spelling Variant" guid="5049f0e3-0000-0000-0000-000000000201">
+            <label>
+                <form lang="en"><text>Spelling Variant</text></form>
+            </label>
+        </range-element>
+        <range-element id="Dialectal Variant" guid="5049f0e3-0000-0000-0000-000000000202">
+            <label>
+                <form lang="en"><text>Dialectal Variant</text></form>
+            </label>
+        </range-element>
+        <range-element id="Free Variant" guid="5049f0e3-0000-0000-0000-000000000203">
+            <label>
+                <form lang="en"><text>Free Variant</text></form>
+            </label>
+        </range-element>
+        <range-element id="Irregularly Inflected Form" guid="5049f0e3-0000-0000-0000-000000000204">
+            <label>
+                <form lang="en"><text>Irregularly Inflected Form</text></form>
+            </label>
+        </range-element>
+    </range>
+    <range id="semantic-domain-ddp4">
+        <range-element id="semantic-domain-1" guid="5049f0e3-0000-0000-0000-000000000101">
+            <label>
+                <form lang="en"><text>Semantic Domain 1</text></form>
+            </label>
+            <range-element id="semantic-domain-1.1" guid="5049f0e3-0000-0000-0000-000000000102">
+                <label>
+                    <form lang="en"><text>Semantic Subdomain 1.1</text></form>
+                </label>
+            </range-element>
+        </range-element>
+    </range>
+    <range id="usage-type"/>
+    <range id="domain-type"/>
+    <range id="location"/>
+    <range id="anthropology"/>
+    <range id="etymology">
+        <range-element id="borrowed" guid="5049f0e3-0000-0000-0000-000000000301">
+            <label>
+                <form lang="en"><text>borrowed</text></form>
+            </label>
+        </range-element>
+        <range-element id="proto" guid="5049f0e3-0000-0000-0000-000000000302">
+            <label>
+                <form lang="en"><text>proto</text></form>
+            </label>
+        </range-element>
+    </range>
+</lift-ranges>

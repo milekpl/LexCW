@@ -3,6 +3,9 @@ from __future__ import annotations
 
 import io
 import json
+import os
+import uuid
+import xml.etree.ElementTree as ET
 import zipfile
 import tempfile
 from pathlib import Path
@@ -118,3 +121,190 @@ def test_backup_zip_contains_all_artifacts(page: Page, app_url: str) -> None:
     delete_resp = page.context.request.delete(f"{app_url}/api/backup/{backup_id}")
     print(f"Backup cleanup status: {delete_resp.status}")
     assert delete_resp.ok, f"Failed to delete backup: {delete_resp.status}"
+
+@pytest.mark.integration
+def test_backup_contains_real_entry_data(page: Page, app_url: str) -> None:
+    """A real backup must contain the ACTUAL database content as an intact .lift.
+
+    This runs through the REAL backup path (E2E_TESTING bypasses the TESTING
+    stub): a probe entry is created in the live BaseX database, a backup is
+    triggered via the UI, and the downloaded .lift must be a single, well-formed
+    document that contains both the probe entry AND the gold seed entries.
+    """
+    entry_id = f"e2e_bkp_{uuid.uuid4().hex[:8]}"
+    word = f"probe-{uuid.uuid4().hex[:6]}"
+    definition = f"definition-{uuid.uuid4().hex[:6]}"
+
+    # 1. Create a real entry in the live database (XML path — full fidelity)
+    # NB: the e2e DB is namespace-less (matches pristine gold data), and the
+    # XML entry API expects a single <entry> root element.
+    entry_xml = f'''<?xml version="1.0" encoding="UTF-8"?>
+<entry id="{entry_id}">
+  <lexical-unit><form lang="en"><text>{word}</text></form></lexical-unit>
+  <sense id="s1">
+    <definition><form lang="en"><text>{definition}</text></form></definition>
+  </sense>
+</entry>'''
+    resp = page.context.request.post(
+        f"{app_url}/api/entries",
+        data=entry_xml.encode("utf-8"),
+        headers={"Content-Type": "application/xml"},
+    )
+    assert resp.ok, (
+        f"Could not create probe entry: {resp.status} {resp.text()[:300]}"
+    )
+
+    try:
+        # 2. Trigger a REAL backup through the UI
+        page.goto(f"{app_url}/backup/management")
+        page.wait_for_selector('#create-backup-btn', state='visible', timeout=10000)
+        page.fill('#backup-description', 'e2e real data backup')
+        page.click('#create-backup-btn')
+
+        # 3. Find the backup in history
+        e2e_db_name = os.environ.get('BASEX_DATABASE') or os.environ.get(
+            'TEST_DB_NAME', 'dictionary'
+        )
+        backup_id = None
+        for _ in range(30):  # Wait up to 15s
+            page.wait_for_timeout(500)
+            resp = page.context.request.get(
+                f"{app_url}/api/backup/history?db_name={e2e_db_name}"
+            )
+            if resp.ok:
+                for b in resp.json().get('data', []):
+                    if 'e2e real data backup' in (b.get('description') or ''):
+                        backup_id = b.get('id')
+                        break
+            if backup_id:
+                break
+        assert backup_id, 'Real backup was not created / not found in history'
+
+        # 4. Download the ZIP and extract the .lift
+        dl = page.context.request.get(f"{app_url}/api/backup/download/{backup_id}")
+        assert dl.ok, f"Download failed: {dl.status}"
+        z = zipfile.ZipFile(io.BytesIO(dl.body()))
+        lift_names = [n for n in z.namelist() if n.endswith('.lift')]
+        assert lift_names, 'Zip contains no real .lift backup'
+        lift_text = z.read(lift_names[0]).decode('utf-8')
+
+        # 5. The .lift must be ONE well-formed document ...
+        ET.fromstring(lift_text)
+        assert '<lift' in lift_text, 'Backup .lift is not a LIFT document'
+
+        # ... and must contain the probe entry's real data ...
+        assert entry_id in lift_text, 'Backup .lift is missing the probe entry id'
+        assert word in lift_text, 'Backup .lift is missing the probe lexical unit'
+        assert definition in lift_text, (
+            'Backup .lift is missing the probe definition'
+        )
+
+        # ... and the gold seed entries (whole DB serialized, not just the probe)
+        assert 'test_entry_1' in lift_text, 'Backup .lift is missing gold entry 1'
+        assert 'test_entry_2' in lift_text, 'Backup .lift is missing gold entry 2'
+
+        # Clean up the backup file
+        delete_resp = page.context.request.delete(
+            f"{app_url}/api/backup/{backup_id}"
+        )
+        assert delete_resp.ok, f"Failed to delete backup: {delete_resp.status}"
+    finally:
+        # Remove the probe entry so it never leaks into other tests
+        try:
+            page.context.request.delete(f"{app_url}/api/entries/{entry_id}")
+        except Exception:
+            pass
+
+
+@pytest.mark.integration
+def test_restore_via_stable_button_restores_entry(page: Page, app_url: str) -> None:
+    """Restore from the UI must bring a deleted real entry back.
+
+    Exercises the stable restore button (#restore-backup-btn in the backup
+    details panel): create a real entry -> backup -> delete the entry ->
+    restore from the UI -> the entry must be back with its original data.
+    """
+    entry_id = f"e2e_rst_{uuid.uuid4().hex[:8]}"
+    word = f"restore-probe-{uuid.uuid4().hex[:6]}"
+
+    # 1. Create a real entry in the live database (XML path)
+    entry_xml = f'''<?xml version="1.0" encoding="UTF-8"?>
+<entry id="{entry_id}">
+  <lexical-unit><form lang="en"><text>{word}</text></form></lexical-unit>
+  <sense id="s1">
+    <definition><form lang="en"><text>{word}-definition</text></form></definition>
+  </sense>
+</entry>'''
+    resp = page.context.request.post(
+        f"{app_url}/api/entries",
+        data=entry_xml.encode("utf-8"),
+        headers={"Content-Type": "application/xml"},
+    )
+    assert resp.ok, f"Could not create probe entry: {resp.status} {resp.text()[:300]}"
+
+    try:
+        # 2. Create a REAL backup via the UI
+        page.goto(f"{app_url}/backup/management")
+        page.wait_for_selector('#create-backup-btn', state='visible', timeout=10000)
+        page.fill('#backup-description', 'e2e restore backup')
+        page.click('#create-backup-btn')
+
+        e2e_db_name = os.environ.get('BASEX_DATABASE') or os.environ.get(
+            'TEST_DB_NAME', 'dictionary'
+        )
+        backup_id = None
+        for _ in range(30):  # Wait up to 15s
+            page.wait_for_timeout(500)
+            resp = page.context.request.get(
+                f"{app_url}/api/backup/history?db_name={e2e_db_name}"
+            )
+            if resp.ok:
+                for b in resp.json().get('data', []):
+                    if 'e2e restore backup' in (b.get('description') or ''):
+                        backup_id = b.get('id')
+                        break
+            if backup_id:
+                break
+        assert backup_id, 'Backup was not created / not found in history'
+
+        # 3. Delete the entry and confirm it is gone
+        del_resp = page.context.request.delete(f"{app_url}/api/entries/{entry_id}")
+        assert del_resp.ok, f"Could not delete probe entry: {del_resp.status}"
+        gone = page.context.request.get(f"{app_url}/api/entries/{entry_id}")
+        assert gone.status == 404, (
+            f"Expected 404 after delete, got {gone.status}"
+        )
+
+        # 4. Restore from the UI via the stable restore button
+        page.on('dialog', lambda dialog: dialog.accept())
+        row = page.locator(
+            f'#backup-history-body tr:has([data-backup-id="{backup_id}"])'
+        )
+        row.locator('.view-btn').first.click()
+        page.wait_for_selector('#restore-backup-btn', state='visible', timeout=5000)
+        page.click('#restore-backup-btn')
+
+        # 5. The entry must reappear with its original data
+        restored = False
+        for _ in range(30):  # Wait up to 15s
+            page.wait_for_timeout(500)
+            resp = page.context.request.get(f"{app_url}/api/entries/{entry_id}")
+            if resp.ok:
+                restored = True
+                assert word in resp.text(), (
+                    'Restored entry is missing its lexical unit'
+                )
+                break
+        assert restored, 'Restored entry did not reappear after UI restore'
+
+        # Clean up the backup file
+        delete_resp = page.context.request.delete(
+            f"{app_url}/api/backup/{backup_id}"
+        )
+        assert delete_resp.ok, f"Failed to delete backup: {delete_resp.status}"
+    finally:
+        # Remove the probe entry so it never leaks into other tests
+        try:
+            page.context.request.delete(f"{app_url}/api/entries/{entry_id}")
+        except Exception:
+            pass

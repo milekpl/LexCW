@@ -1,6 +1,4 @@
-import os
-from datetime import datetime
-from flask import Blueprint, render_template, jsonify, request, current_app, flash, redirect, url_for, send_from_directory
+from flask import Blueprint, render_template, current_app, flash, redirect, url_for
 from flasgger import swag_from
 from app.services.backup_service import get_backup_service
 
@@ -36,30 +34,32 @@ def backup_management():
 def download_backup():
     """
     Create a backup and return it as a downloadable file.
+
+    Delegates to ``BackupService.download_backup`` — the SAME implementation
+    as the API endpoint — so the ZIP bundles the sidecars (ranges, settings,
+    validation rules, meta, media) instead of the raw .lift only.
     """
     try:
         service = get_backup_service()
         db_name = current_app.config.get('BASEX_DATABASE', 'dictionary')
 
-        meta, op_id = service.create_backup(
+        service.create_backup(
             db_name=db_name,
             backup_type='manual'
         )
 
-        file_path = meta.get('file_path')
-        if not file_path or not os.path.exists(file_path):
+        # Resolve the just-created backup (async creation may not return a
+        # file_path directly) and serve it via the shared download path.
+        backups = service.list_backups(db_name=db_name) or []
+        if not backups:
             flash('Backup file was not created successfully.', 'error')
             return redirect(url_for('backup.backup_management'))
 
-        directory = os.path.dirname(file_path)
-        filename = os.path.basename(file_path)
-
-        return send_from_directory(
-            directory,
-            filename,
-            as_attachment=True,
-            download_name=f"{db_name}_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.lift"
-        )
+        result = service.download_backup(backups[0]['id'])
+        if isinstance(result, tuple):
+            flash(f'Backup download failed: {result[1]}', 'error')
+            return redirect(url_for('backup.backup_management'))
+        return result
 
     except Exception as e:
         current_app.logger.error(f"Error creating backup for download: {e}")

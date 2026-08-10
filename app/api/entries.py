@@ -5,7 +5,7 @@ API endpoints for managing dictionary entries.
 import json
 import logging
 import os
-from typing import Any
+from typing import Any, Dict, Optional
 from flask import Blueprint, request, jsonify, current_app, session
 from flasgger import swag_from
 
@@ -29,6 +29,53 @@ def get_dictionary_service() -> DictionaryService:
         DictionaryService instance.
     """
     return current_app.injector.get(DictionaryService)
+
+
+def _entry_snapshot(entry_id: str) -> Optional[Dict[str, Any]]:
+    """Fetch an entry's full dict state (or None if it can't be read)."""
+    try:
+        entry = get_dictionary_service().get_entry(entry_id)
+        return entry.to_dict() if entry is not None else None
+    except Exception as e:
+        logger.warning(f"Could not snapshot entry {entry_id}: {e}")
+        return None
+
+
+def _record_undo_operation(
+    operation_type: str,
+    entry_id: str,
+    before: Optional[Dict[str, Any]] = None,
+    after: Optional[Dict[str, Any]] = None,
+) -> None:
+    """
+    Record an undoable operation for the primary (XML) entry edit paths.
+
+    The XML service itself has no history service, so the API layer records
+    full before/after snapshots here — these feed the real undo/redo
+    implementation (BackupService), which restores the actual entry data.
+    """
+    try:
+        if not entry_id:
+            return
+        ds = get_dictionary_service()
+        hist = getattr(ds, 'history_service', None)
+        if hist is None:
+            return
+        data: Dict[str, Any] = {}
+        if before is not None:
+            data['before'] = before
+        if after is not None:
+            data['after'] = after
+        hist.record_operation(
+            operation_type,
+            data,
+            entry_id=entry_id,
+            db_name=ds.db_connector.database,
+        )
+    except Exception as e:
+        logger.warning(
+            f"Failed to record undo operation {operation_type} for {entry_id}: {e}"
+        )
 
 
 def _entries_cache_version(cache: CacheService, db_name: str) -> str:
@@ -371,6 +418,11 @@ def create_entry() -> Any:
                         _svc.close()
                     except Exception:
                         pass
+            # Record undo operation for the XML-created entry
+            new_entry_id = result.get("id") if isinstance(result, dict) else result
+            _record_undo_operation(
+                'create', new_entry_id, after=_entry_snapshot(new_entry_id)
+            )
             # Clear cache after creation
             cache = CacheService()
             if cache.is_available():
@@ -537,8 +589,17 @@ def update_entry(entry_id: str) -> Any:
             entry_xml = ET.tostring(entry_elem, encoding="unicode")
             logger.info(f"[SENSE UPDATE] XML to update (truncated): {entry_xml[:500]}")
 
+            # Capture pre-update state for undo (before the write)
+            before_snapshot = _entry_snapshot(entry_id)
+
             # Update via xml service
             result = xml_service.update_entry(entry_id, entry_xml)
+            if before_snapshot is not None:
+                _record_undo_operation(
+                    'update', entry_id,
+                    before=before_snapshot,
+                    after=_entry_snapshot(entry_id),
+                )
             return jsonify({"success": True, "id": result.get("id", entry_id)})
         except XMLEntryNotFoundError:
             # Fall through to dict_service for entries not in xml service
@@ -714,7 +775,9 @@ def delete_entry(entry_id: str) -> Any:
     try:
         from app.api.xml_entries import get_xml_entry_service
         xml_service = get_xml_entry_service()
+        before_snapshot = _entry_snapshot(entry_id)
         xml_service.delete_entry(entry_id)
+        _record_undo_operation('delete', entry_id, before=before_snapshot)
         logger.info(f"Deleted entry {entry_id} via xml_service")
         return jsonify({"success": True})
     except XMLEntryNotFoundError:

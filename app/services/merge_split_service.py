@@ -40,7 +40,8 @@ class MergeSplitService:
         source_entry_id: str,
         sense_ids: List[str],
         new_entry_data: Dict[str, Any],
-        user_id: Optional[str] = None
+        user_id: Optional[str] = None,
+        record_history: bool = True
     ) -> MergeSplitOperation:
         """
         Split an entry by moving specified senses to a new entry.
@@ -50,6 +51,8 @@ class MergeSplitService:
             sense_ids: List of sense IDs to move to the new entry
             new_entry_data: Data for the new entry (lexical_unit, etc.)
             user_id: ID of the user performing the operation
+            record_history: If False, do not record the operation (used by
+                redo, which must not re-pollute the undo stack).
 
         Returns:
             MergeSplitOperation object representing the completed operation
@@ -106,13 +109,14 @@ class MergeSplitService:
                 raise
 
             # Record sense transfers
-            for sense_id in sense_ids:
-                transfer = SenseTransfer(
-                    sense_id=sense_id,
-                    original_entry_id=source_entry_id,
-                    new_entry_id=new_entry.id
-                )
-                self.history_service.record_transfer(transfer)
+            if record_history and self.history_service:
+                for sense_id in sense_ids:
+                    transfer = SenseTransfer(
+                        sense_id=sense_id,
+                        original_entry_id=source_entry_id,
+                        new_entry_id=new_entry.id
+                    )
+                    self.history_service.record_transfer(transfer)
 
             # Record the operation in the enhanced history system
             operation_data = {
@@ -124,17 +128,18 @@ class MergeSplitService:
                 'new_entry_data': new_entry_data
             }
 
-            self.history_service.record_operation(
-                operation_type='split',
-                data=operation_data,
-                entry_id=source_entry_id,
-                user_id=user_id
-            )
+            if record_history and self.history_service:
+                self.history_service.record_operation(
+                    operation_type='split',
+                    data=operation_data,
+                    entry_id=source_entry_id,
+                    user_id=user_id
+                )
 
-            # Record the operation in the legacy system for backward compatibility
-            operation.target_id = new_entry.id
-            operation.mark_completed()
-            self.history_service.record_merge_split_operation(operation)
+                # Record the operation in the legacy system for backward compatibility
+                operation.target_id = new_entry.id
+                operation.mark_completed()
+                self.history_service.record_merge_split_operation(operation)
 
             return operation
 
@@ -160,7 +165,8 @@ class MergeSplitService:
         source_entry_id: str,
         sense_ids: List[str],
         user_id: Optional[str] = None,
-        conflict_resolution: Optional[Dict[str, str]] = None
+        conflict_resolution: Optional[Dict[str, str]] = None,
+        record_history: bool = True
     ) -> MergeSplitOperation:
         """
         Merge senses from source entry into target entry.
@@ -171,6 +177,8 @@ class MergeSplitService:
             sense_ids: List of sense IDs to merge
             user_id: ID of the user performing the operation
             conflict_resolution: Strategy for resolving conflicts
+            record_history: If False, do not record the operation (used by
+                redo, which must not re-pollute the undo stack).
 
         Returns:
             MergeSplitOperation object representing the completed operation
@@ -241,13 +249,14 @@ class MergeSplitService:
                 raise
 
             # Record sense transfers
-            for sense_id in sense_ids:
-                transfer = SenseTransfer(
-                    sense_id=sense_id,
-                    original_entry_id=source_entry_id,
-                    new_entry_id=target_entry_id
-                )
-                self.history_service.record_transfer(transfer)
+            if record_history and self.history_service:
+                for sense_id in sense_ids:
+                    transfer = SenseTransfer(
+                        sense_id=sense_id,
+                        original_entry_id=source_entry_id,
+                        new_entry_id=target_entry_id
+                    )
+                    self.history_service.record_transfer(transfer)
 
             # Record the operation in the enhanced history system
             operation_data = {
@@ -260,16 +269,17 @@ class MergeSplitService:
                 'conflict_resolution': conflict_resolution
             }
 
-            self.history_service.record_operation(
-                operation_type='merge',
-                data=operation_data,
-                entry_id=target_entry_id,
-                user_id=user_id
-            )
+            if record_history and self.history_service:
+                self.history_service.record_operation(
+                    operation_type='merge',
+                    data=operation_data,
+                    entry_id=target_entry_id,
+                    user_id=user_id
+                )
 
-            # Record the operation in the legacy system for backward compatibility
-            operation.mark_completed()
-            self.history_service.record_merge_split_operation(operation)
+                # Record the operation in the legacy system for backward compatibility
+                operation.mark_completed()
+                self.history_service.record_merge_split_operation(operation)
 
             return operation
 
@@ -296,7 +306,8 @@ class MergeSplitService:
         target_sense_id: str,
         source_sense_ids: List[str],
         user_id: Optional[str] = None,
-        merge_strategy: str = "combine_all"
+        merge_strategy: str = "combine_all",
+        record_history: bool = True
     ) -> MergeSplitOperation:
         """
         Merge multiple senses within the same entry into a target sense.
@@ -376,16 +387,17 @@ class MergeSplitService:
                 'merge_strategy': merge_strategy
             }
 
-            self.history_service.record_operation(
-                operation_type='merge_senses',
-                data=operation_data,
-                entry_id=entry_id,
-                user_id=user_id
-            )
+            if record_history and self.history_service:
+                self.history_service.record_operation(
+                    operation_type='merge_senses',
+                    data=operation_data,
+                    entry_id=entry_id,
+                    user_id=user_id
+                )
 
-            # Record the operation in the legacy system for backward compatibility
-            operation.mark_completed()
-            self.history_service.record_merge_split_operation(operation)
+                # Record the operation in the legacy system for backward compatibility
+                operation.mark_completed()
+                self.history_service.record_merge_split_operation(operation)
 
             return operation
 
@@ -662,48 +674,142 @@ class MergeSplitService:
             if transfer.original_entry_id == entry_id or transfer.new_entry_id == entry_id
         ]
 
+    @staticmethod
+    def _op_data(op: Dict[str, Any]) -> Dict[str, Any]:
+        """Extract the operation's data dict (handles JSON-string or dict form)."""
+        raw = op.get('data')
+        if isinstance(raw, str):
+            try:
+                return json.loads(raw)
+            except (ValueError, TypeError):
+                return {}
+        return raw or {}
+
+    def _restore_entry_snapshot(self, entry_id: str, snapshot: Optional[Dict[str, Any]]) -> None:
+        """Restore an entry's full state from a snapshot (re-creating it if missing).
+
+        Compensating write: validation and bidirectional reconciliation are
+        skipped so the exact snapshot state is restored; no history is recorded
+        (undo/redo must not re-pollute the stack).
+        """
+        if not snapshot or not snapshot.get('id'):
+            raise ValidationError(
+                f"Cannot restore entry {entry_id}: no snapshot data in operation"
+            )
+        try:
+            entry = self.dictionary_service.get_entry(entry_id)
+        except NotFoundError:
+            entry = None
+        if entry is None:
+            self.dictionary_service.create_entry(
+                Entry.from_dict(snapshot),
+                draft=True, skip_validation=True, record_history=False,
+            )
+        else:
+            entry.update_from_dict(snapshot)
+            self.dictionary_service.update_entry(
+                entry,
+                skip_validation=True, skip_bidirectional=True, record_history=False,
+            )
+
+    def undo_merge_split_operation(self, op: Dict[str, Any]) -> None:
+        """Restore entry data for an undo of a merge/split operation.
+
+        Undo semantics:
+        - split_entry: delete the entry created by the split, restore the source.
+        - merge_entries: restore both target and source (re-creating the source
+          if the merge deleted it).
+        - merge_senses: restore the entry from its pre-merge snapshot.
+        """
+        data = self._op_data(op)
+        op_type = data.get('operation_type')
+        if op_type == 'split_entry':
+            new_id = data.get('new_entry_id')
+            if new_id:
+                try:
+                    self.dictionary_service.delete_entry(new_id, record_history=False)
+                except Exception:
+                    pass  # already gone — nothing to remove
+            self._restore_entry_snapshot(
+                data.get('source_entry_id'), data.get('original_source_entry')
+            )
+        elif op_type == 'merge_entries':
+            self._restore_entry_snapshot(
+                data.get('target_entry_id'), data.get('original_target_entry')
+            )
+            self._restore_entry_snapshot(
+                data.get('source_entry_id'), data.get('original_source_entry')
+            )
+        elif op_type == 'merge_senses':
+            self._restore_entry_snapshot(
+                data.get('entry_id'), data.get('original_entry')
+            )
+        else:
+            raise ValidationError(
+                f"Cannot undo merge/split operation of type '{op_type}'"
+            )
+
+    def redo_merge_split_operation(self, op: Dict[str, Any]) -> None:
+        """Re-apply a merge/split operation (redo), without re-recording history."""
+        data = self._op_data(op)
+        op_type = data.get('operation_type')
+        if op_type == 'split_entry':
+            self.split_entry(
+                data['source_entry_id'],
+                data['sense_ids'],
+                data.get('new_entry_data') or {},
+                record_history=False,
+            )
+        elif op_type == 'merge_entries':
+            self.merge_entries(
+                data['target_entry_id'],
+                data['source_entry_id'],
+                data['sense_ids'],
+                conflict_resolution=data.get('conflict_resolution'),
+                record_history=False,
+            )
+        elif op_type == 'merge_senses':
+            self.merge_senses(
+                data['entry_id'],
+                data['target_sense_id'],
+                data['source_sense_ids'],
+                merge_strategy=data.get('merge_strategy', 'combine_all'),
+                record_history=False,
+            )
+        else:
+            raise ValidationError(
+                f"Cannot redo merge/split operation of type '{op_type}'"
+            )
+
     def undo_last_operation(self, user_id: Optional[str] = None) -> bool:
         """
-        Attempt to undo the last operation recorded in the history service.
-
-        Args:
-            user_id: ID of the user performing the undo operation
-
-        Returns:
-            True if undo was successful, False otherwise
+        Undo the last merge/split operation — actually restores the affected
+        entry data (re-splits a merge, re-merges a split), then moves the
+        operation to the redo stack.
         """
         try:
-            # Use the enhanced undo functionality from OperationHistoryService
-            result = self.history_service.undo_last_operation()
-
-            if result:
-                # If the undo was successful, we might want to update the data accordingly
-                # For now, we'll just return True to indicate the operation was marked as undone
-                return True
-            else:
+            stack = self.history_service.get_undo_stack()
+            if not stack:
                 return False
+            op = stack[-1]
+            self.undo_merge_split_operation(op)
+            return self.history_service.undo_last_operation() is not None
         except Exception as e:
-            # Log the error or handle it as appropriate for your application
+            self.logger.error("Failed to undo last operation: %s", e)
             return False
 
     def redo_last_operation(self, user_id: Optional[str] = None) -> bool:
         """
-        Attempt to redo the last undone operation.
-
-        Args:
-            user_id: ID of the user performing the redo operation
-
-        Returns:
-            True if redo was successful, False otherwise
+        Redo the last undone merge/split operation — re-applies the operation
+        (without re-recording), then moves it back to the undo stack.
         """
         try:
-            # Use the enhanced redo functionality from OperationHistoryService
-            result = self.history_service.redo_last_operation()
-
-            if result:
-                return True
-            else:
+            stack = self.history_service.get_redo_stack()
+            if not stack:
                 return False
+            op = stack[-1]
+            self.redo_merge_split_operation(op)
+            return self.history_service.redo_last_operation() is not None
         except Exception as e:
-            # Log the error or handle it as appropriate for your application
+            self.logger.error("Failed to redo last operation: %s", e)
             return False

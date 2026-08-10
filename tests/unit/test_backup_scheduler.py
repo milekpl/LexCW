@@ -298,3 +298,73 @@ class TestBackupScheduler:
         result = scheduler.sync_backup_schedule('dictionary', backup_settings)
         assert result is False
         scheduler.schedule_backup.assert_not_called()
+
+    def test_execute_scheduled_backup_enforces_retention(self):
+        """A successful scheduled backup prunes old backups per the synced retention."""
+        scheduled_backup = ScheduledBackup(
+            db_name='test_db',
+            interval='daily',
+            time_='02:00',
+            type_='full',
+            next_run=datetime(2025, 1, 1, 12, 0)
+        )
+
+        self.mock_backup_manager.backup_database.return_value = Mock()
+        self.mock_backup_manager.cleanup_old_backups.return_value = 2
+        self.scheduler._retention_by_db['test_db'] = 3
+
+        mock_app = Mock()
+        mock_app_context = Mock()
+        mock_app.app_context.return_value = mock_app_context
+        mock_app_context.__enter__ = Mock(return_value=mock_app_context)
+        mock_app_context.__exit__ = Mock(return_value=False)
+
+        with patch('flask.current_app', mock_app):
+            self.scheduler._execute_scheduled_backup(scheduled_backup)
+
+        self.mock_backup_manager.cleanup_old_backups.assert_called_once_with(
+            'test_db', keep_count=3
+        )
+        assert scheduled_backup.last_status == 'success'
+
+    def test_execute_scheduled_backup_default_retention(self):
+        """Without synced settings the default retention (10) is used."""
+        scheduled_backup = ScheduledBackup(
+            db_name='test_db',
+            interval='daily',
+            time_='02:00',
+            type_='full',
+            next_run=datetime(2025, 1, 1, 12, 0)
+        )
+
+        self.mock_backup_manager.backup_database.return_value = Mock()
+        self.mock_backup_manager.cleanup_old_backups.return_value = 0
+
+        mock_app = Mock()
+        mock_app_context = Mock()
+        mock_app.app_context.return_value = mock_app_context
+        mock_app_context.__enter__ = Mock(return_value=mock_app_context)
+        mock_app_context.__exit__ = Mock(return_value=False)
+
+        with patch('flask.current_app', mock_app):
+            self.scheduler._execute_scheduled_backup(scheduled_backup)
+
+        self.mock_backup_manager.cleanup_old_backups.assert_called_once_with(
+            'test_db', keep_count=10
+        )
+
+    def test_sync_backup_schedule_records_retention(self):
+        """sync_backup_schedule stores the configured retention for enforcement."""
+        with patch('app.services.backup_scheduler.BackgroundScheduler') as mock_cls:
+            mock_scheduler = Mock()
+            mock_scheduler.add_job.return_value = Mock()
+            mock_cls.return_value = mock_scheduler
+            self.scheduler.start()
+
+            result = self.scheduler.sync_backup_schedule(
+                'test_db', {'schedule': 'daily', 'time': '02:00', 'retention': 3}
+            )
+
+            assert result is True
+            assert self.scheduler._retention_by_db['test_db'] == 3
+            self.scheduler.stop()

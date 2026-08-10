@@ -605,12 +605,21 @@ class BackupManager {
         note.innerHTML = '<p><strong>Note:</strong> "View" shows details here. "Validate" checks the backup file. "Restore" will replace the current database.</p>';
         content.appendChild(note);
 
-        // Show restore button only for valid backups
+        // Show restore button only for valid backups and bind it to the current backup
         if (restoreBtn) {
             // Allow restore if backup validates OR there's a non-empty file to restore from
             const canRestore = Boolean(backup.is_valid) || (backup.file_size && backup.file_size > 0);
             restoreBtn.style.display = canRestore ? 'inline-block' : 'none';
-            // restore button in rows is handled via delegated click; nothing to bind here
+            // The details panel is reused across backups — track the current id on
+            // the button and bind the click handler exactly once.
+            restoreBtn.dataset.backupId = backup.id;
+            if (!restoreBtn.dataset.bound) {
+                restoreBtn.dataset.bound = 'true';
+                restoreBtn.addEventListener('click', () => {
+                    const id = restoreBtn.dataset.backupId;
+                    if (id) this.confirmRestore(id);
+                });
+            }
         }
 
         // No modal handling — inline panel is used instead
@@ -675,10 +684,6 @@ class BackupManager {
     async performRestore() {
         if (!this.currentBackupId) return;
 
-        const confirmBtn = document.getElementById('confirm-restore-btn');
-        confirmBtn.disabled = true;
-        confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Restoring...';
-
         try {
             // Get backup details to obtain db_name and file_path
             const detailsResp = await fetch(`/api/backup/history/${this.currentBackupId}`);
@@ -695,10 +700,6 @@ class BackupManager {
                 const result = await response.json();
                 this.showToast(result.message || 'Backup restored successfully', 'success');
 
-                // Close modal
-                const modal = bootstrap.Modal.getInstance(document.getElementById('restoreConfirmModal'));
-                if (modal) modal.hide();
-
                 // Refresh backup history
                 await this.loadBackupHistory();
             } else {
@@ -713,9 +714,6 @@ class BackupManager {
         } catch (error) {
             console.error('Error during restore:', error);
             this.showToast('Network error during restore', 'error');
-        } finally {
-            confirmBtn.disabled = false;
-            confirmBtn.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Yes, Restore Backup';
         }
     }
 

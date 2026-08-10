@@ -252,6 +252,9 @@ def flask_app_server(basex_server, pristine_ranges_data: str):
     # Create Flask app
     app = create_app(os.getenv('FLASK_CONFIG') or 'testing')
     app.config['TESTING'] = True
+    # E2E tests use the REAL backup path (real BaseX serialization), not the
+    # TESTING stub — so backup e2e tests verify actual data end to end.
+    app.config['E2E_TESTING'] = True
     app.config['DEBUG'] = False
     
     # Initialize PostgreSQL for worksets (once per session)

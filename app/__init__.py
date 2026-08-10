@@ -808,12 +808,31 @@ def create_app(config_name=None):
                         result = backup_scheduler.schedule_backup(scheduled_backup)
                         if result:
                             app.logger.info(f"Scheduled {schedule_interval} backup at {time_str}")
+                            # Apply the configured retention so it is enforced
+                            # immediately (without waiting for a settings change).
+                            backup_scheduler.set_retention(
+                                db_name, backup_config.get('retention', 10)
+                            )
                         else:
                             app.logger.info(f"Did not schedule backup for {db_name} (schedule={schedule_interval})")
                     else:
                         app.logger.info("Backup schedule is set to 'none' in settings")
                 else:
                     app.logger.info("No backup settings found")
+
+                # Recover databases stranded by a crash mid-restore (DROP done,
+                # ALTER not yet): rename any <db>_restore_* back to <db>, but only
+                # when the live database is absent (never clobber newer data).
+                try:
+                    recovered = backup_manager.recover_orphaned_restore_databases()
+                    if recovered:
+                        app.logger.info(
+                            f"Recovered orphaned restore databases: {recovered}"
+                        )
+                except Exception as e:
+                    app.logger.error(
+                        f"Failed to recover orphaned restore databases: {e}"
+                    )
             except Exception as e:
                 app.logger.error(f"Error loading backup settings: {e}")
                 app.logger.debug(traceback.format_exc())

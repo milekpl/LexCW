@@ -45,6 +45,9 @@ class BackupScheduler:
         self._scheduled_backup_jobs: Dict[str, Job] = {}
         self._lock = threading.Lock()
         self._running = False
+        # Retention (number of backups to keep) per database, synced from
+        # ProjectSettings.backup_settings['retention'].
+        self._retention_by_db: Dict[str, int] = {}
         # First run always performs a backup
         self._dirty_event = threading.Event()
         self._dirty_event.set()
@@ -52,6 +55,18 @@ class BackupScheduler:
         # Subscribe to entry_updated events if event_bus is provided
         if event_bus:
             event_bus.on('entry_updated', self._on_entry_updated)
+
+    def set_retention(self, db_name: str, keep_count: int) -> None:
+        """Record how many backups to keep for a database.
+
+        Enforced after each successful scheduled backup (best-effort prune of
+        the oldest backups). ``keep_count`` is clamped to >= 1; unparseable
+        values fall back to the default of 10.
+        """
+        try:
+            self._retention_by_db[db_name] = max(1, int(keep_count or 10))
+        except (TypeError, ValueError):
+            self._retention_by_db[db_name] = 10
 
     def start(self):
         """Start the backup scheduler."""
@@ -201,6 +216,24 @@ class BackupScheduler:
 
             self.logger.info(f"Scheduled backup completed for {scheduled_backup.db_name}")
 
+            # Enforce retention: prune old backups so the disk doesn't grow
+            # unbounded (configured via ProjectSettings.backup_settings['retention']).
+            keep_count = self._retention_by_db.get(scheduled_backup.db_name, 10)
+            try:
+                deleted = self.backup_manager.cleanup_old_backups(
+                    scheduled_backup.db_name, keep_count=keep_count
+                )
+                if deleted:
+                    self.logger.info(
+                        f"Retention: pruned {deleted} old backups for "
+                        f"{scheduled_backup.db_name} (keeping {keep_count})"
+                    )
+            except Exception as re_e:
+                # Retention is best-effort — never fail the backup because of it.
+                self.logger.error(
+                    f"Retention cleanup failed for {scheduled_backup.db_name}: {re_e}"
+                )
+
         except Exception as e:
             scheduled_backup.last_status = 'failed'
             error_msg = f"Scheduled backup failed for {scheduled_backup.db_name}: {str(e)}"
@@ -326,6 +359,9 @@ class BackupScheduler:
             schedule_interval = backup_settings.get('schedule', 'daily')
             if not schedule_interval or schedule_interval == 'none':
                 self.logger.info(f"Backup schedule disabled for {db_name}")
+                # Remember the retention setting anyway so it survives a later
+                # re-enable without another settings save.
+                self.set_retention(db_name, backup_settings.get('retention', 10))
                 return False
 
             # Validate schedule value - treat unknown/legacy values as disabled to avoid raising
@@ -335,6 +371,7 @@ class BackupScheduler:
                 self.logger.warning(
                     f"Unsupported backup schedule value: {schedule_interval} for {db_name}; treating as disabled"
                 )
+                self.set_retention(db_name, backup_settings.get('retention', 10))
                 return False
                 
             # 3. Create new schedule
@@ -357,6 +394,8 @@ class BackupScheduler:
             result = self.schedule_backup(scheduled_backup)
             if result:
                 self.logger.info(f"Successfully synced new backup schedule for {db_name}: {schedule_interval} at {time_str}")
+                # Remember retention for enforcement after each scheduled backup.
+                self.set_retention(db_name, backup_settings.get('retention', 10))
             return result
             
         except Exception as e:
