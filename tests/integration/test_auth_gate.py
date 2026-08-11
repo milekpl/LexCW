@@ -203,3 +203,34 @@ def test_registration_is_public_when_enabled():
     response = open_app.test_client().get("/auth/register")
 
     assert response.status_code == 200
+
+
+def test_login_page_not_redirect_looped_without_project_context(app):
+    """Regression: /auth/login must be exempt from load_project_context's
+    "no project in session -> go pick one" redirect. In production (no
+    TEST_DB_NAME) that redirect bounced /auth/login to /settings/projects,
+    which is login_required, which sent the anonymous user back to
+    /auth/login — an infinite redirect loop that made login impossible.
+    """
+    import os
+
+    saved = os.environ.pop("TEST_DB_NAME", None)  # simulate production
+    try:
+        with app.test_client() as client:
+            seen, path = set(), "/"
+            for _ in range(6):
+                assert path not in seen, f"redirect loop detected at {path}"
+                seen.add(path)
+                resp = client.get(path, follow_redirects=False)
+                loc = resp.headers.get("Location", "")
+                if resp.status_code != 302 or not loc:
+                    break
+                path = loc.split("?")[0]
+            # The chain must terminate on the login page (which renders 200),
+            # not ping-pong between /auth/login and /settings/projects.
+            assert path == "/auth/login", f"chain terminated at {path!r}: {seen}"
+            login = client.get("/auth/login", follow_redirects=False)
+            assert login.status_code == 200
+    finally:
+        if saved is not None:
+            os.environ["TEST_DB_NAME"] = saved

@@ -246,6 +246,13 @@ class TestFlaskApp:
     def setup_method(self):
         """Set up test fixtures."""
         self.app = create_app('testing')
+        # This class asserts *unauthenticated* behaviour (the anonymous visit
+        # must be redirected to login). The integration conftest
+        # (tests/integration/conftest.py) session-wide patches Flask.test_client
+        # to auto-login every client, and that patch leaks into any test module
+        # that shares a pytest session with tests/integration/ — including this
+        # one. Opt out with the documented flag so the clients stay anonymous.
+        self.app._tests_anonymous = True
         self.client = self.app.test_client()
     
     @pytest.mark.integration

@@ -495,6 +495,7 @@ def create_app(config_name=None):
 
         # Exempt certain paths from mandatory project context
         exempt_paths = [
+            "/auth/",          # login/register/logout: no project before you're logged in
             "/settings/",
             "/static/",
             "/health",
