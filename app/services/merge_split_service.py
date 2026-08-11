@@ -91,16 +91,22 @@ class MergeSplitService:
             # Save changes to database
             new_entry_id = new_entry.id
             try:
-                self.dictionary_service.create_entry(new_entry)
+                self.dictionary_service.create_entry(
+                    new_entry, record_history=record_history
+                )
             except Exception:
                 raise
 
             try:
-                self.dictionary_service.update_entry(modified_source_entry)
+                self.dictionary_service.update_entry(
+                    modified_source_entry, record_history=record_history
+                )
             except Exception:
                 # Compensation: undo the partial create by deleting the new entry
                 try:
-                    self.dictionary_service.delete_entry(new_entry_id)
+                    self.dictionary_service.delete_entry(
+                        new_entry_id, record_history=record_history
+                    )
                 except Exception as comp_e:
                     self.logger.error(
                         "Compensation failed: could not delete partially-created entry %s: %s",
@@ -230,17 +236,25 @@ class MergeSplitService:
             # Save original target data for compensation
             original_target_data = DataCopier().copy(original_target_entry)
 
-            self.dictionary_service.update_entry(modified_target_entry)
+            self.dictionary_service.update_entry(
+                modified_target_entry, record_history=record_history
+            )
 
             try:
                 if modified_source_entry.senses:
-                    self.dictionary_service.update_entry(modified_source_entry)
+                    self.dictionary_service.update_entry(
+                        modified_source_entry, record_history=record_history
+                    )
                 else:
-                    self.dictionary_service.delete_entry(modified_source_entry.id)
+                    self.dictionary_service.delete_entry(
+                        modified_source_entry.id, record_history=record_history
+                    )
             except Exception:
                 # Compensation: restore the original target entry
                 try:
-                    self.dictionary_service.update_entry(original_target_data)
+                    self.dictionary_service.update_entry(
+                        original_target_data, record_history=record_history
+                    )
                 except Exception as comp_e:
                     self.logger.error(
                         "Compensation failed: could not restore target entry %s: %s",
@@ -375,7 +389,9 @@ class MergeSplitService:
             self._remove_senses_from_entry(modified_entry, source_sense_ids)
 
             # Save changes to database
-            self.dictionary_service.update_entry(modified_entry)
+            self.dictionary_service.update_entry(
+                modified_entry, record_history=record_history
+            )
 
             # Record the operation in the enhanced history system
             operation_data = {
@@ -471,8 +487,13 @@ class MergeSplitService:
         Returns:
             New Entry object
         """
-        # Create new entry ID
-        new_entry_id = f"{source_entry.id}_split_{datetime.now().strftime('%Y%m%d%H%M%S')}"
+        # Create new entry ID — prefer an explicit id in new_entry_data so a
+        # REDO of a split re-creates the ORIGINAL entry id (reproducing the
+        # operation exactly) instead of a fresh timestamp id.
+        new_entry_id = (
+            new_entry_data.get('id')
+            or f"{source_entry.id}_split_{datetime.now().strftime('%Y%m%d%H%M%S')}"
+        )
 
         # Get senses for new entry
         new_senses = []
@@ -754,10 +775,15 @@ class MergeSplitService:
         data = self._op_data(op)
         op_type = data.get('operation_type')
         if op_type == 'split_entry':
+            new_entry_data = dict(data.get('new_entry_data') or {})
+            # Re-create the entry with its ORIGINAL id so redo reproduces the
+            # split exactly (and the same entry id is reused, not regenerated).
+            if data.get('new_entry_id'):
+                new_entry_data['id'] = data['new_entry_id']
             self.split_entry(
                 data['source_entry_id'],
                 data['sense_ids'],
-                data.get('new_entry_data') or {},
+                new_entry_data,
                 record_history=False,
             )
         elif op_type == 'merge_entries':

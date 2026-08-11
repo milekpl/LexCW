@@ -220,7 +220,8 @@ class XQueryBuilder:
 
     @staticmethod
     def build_update_entry_query(
-        entry_id: str, entry_xml: str, db_name: str, has_namespace: bool = True
+        entry_id: str, entry_xml: str, db_name: str, has_namespace: bool = True,
+        base_modified: Optional[str] = None,
     ) -> str:
         """
         Build query to update existing entry.
@@ -230,6 +231,10 @@ class XQueryBuilder:
             entry_xml: New XML content for the entry
             db_name: Name of the database
             has_namespace: Whether XML uses namespaces
+            base_modified: Optional optimistic-concurrency token. When given,
+                the replace only fires if the stored entry's dateModified still
+                matches (compare-and-swap); entries without a dateModified are
+                still matched so legacy entries remain updatable.
 
         Returns:
             Complete XQuery string
@@ -241,8 +246,20 @@ class XQueryBuilder:
         # Use the same broad selector as build_entry_exists_query /
         # build_delete_entry_query so the update targets whatever the existence
         # guard matched (entry id, GUID, GUID suffix, or sense id/GUID).
+        selector = (
+            f'collection()//{entry_path}[@id="{entry_id}" or @guid="{entry_id}" '
+            f'or ends-with(@id, "_{entry_id}") or {sense_path}/@id="{entry_id}" '
+            f'or {sense_path}/@guid="{entry_id}"]'
+        )
+        if base_modified:
+            selector = (
+                f'collection()//{entry_path}[(@id="{entry_id}" or @guid="{entry_id}" '
+                f'or ends-with(@id, "_{entry_id}") or {sense_path}/@id="{entry_id}" '
+                f'or {sense_path}/@guid="{entry_id}") '
+                f'and (@dateModified="{base_modified}" or not(@dateModified))]'
+            )
         return f"""{prologue}
-        replace node collection()//{entry_path}[@id="{entry_id}" or @guid="{entry_id}" or ends-with(@id, "_{entry_id}") or {sense_path}/@id="{entry_id}" or {sense_path}/@guid="{entry_id}"]
+        replace node {selector}
         with {entry_xml}
         """
 

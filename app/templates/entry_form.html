@@ -107,7 +107,7 @@
 
 {% set source_lang = current_app.config.PROJECT_SETTINGS.source_language.code if current_app and current_app.config.PROJECT_SETTINGS and current_app.config.PROJECT_SETTINGS.source_language else 'en' %}
 {% set target_lang = current_app.config.PROJECT_SETTINGS.target_language.code if current_app and current_app.config.PROJECT_SETTINGS and current_app.config.PROJECT_SETTINGS.target_language else 'en' %}
-<form id="entry-form" method="post" data-source-language="{{ source_lang }}" data-target-language="{{ target_lang }}" novalidate>
+<form id="entry-form" method="post" data-source-language="{{ source_lang }}" data-target-language="{{ target_lang }}" data-entry-modified="{{ entry.date_modified if entry.date_modified else '' }}" novalidate>
     {% if entry.id %}
         <input type="hidden" name="id" value="{{ entry.id }}">
     {% endif %}
@@ -575,6 +575,37 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 </script>
+{% if autosave_enabled %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Autosave + unsaved-changes guard (disabled under pytest — see views.py).
+    try {
+        var formEl = document.getElementById('entry-form');
+        if (!formEl || typeof FormStateManager === 'undefined'
+            || typeof ClientValidationEngine === 'undefined'
+            || typeof AutoSaveManager === 'undefined') {
+            if (window.Logger) Logger.warn('Autosave managers unavailable; skipping autosave');
+            return;
+        }
+        var stateManager = new FormStateManager();
+        var validationEngine = new ClientValidationEngine();
+        var autoSave = new AutoSaveManager(stateManager, validationEngine);
+        autoSave.start();
+        window.__autoSaveManager = autoSave;
+
+        // Warn before leaving the page with unsaved changes.
+        window.addEventListener('beforeunload', function(e) {
+            if (stateManager.hasUnsavedChanges()) {
+                e.preventDefault();
+                e.returnValue = '';
+            }
+        });
+    } catch (err) {
+        if (window.Logger) Logger.error('Failed to initialize autosave:', err);
+    }
+});
+</script>
+{% endif %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     // Initialize CorpusSearch module

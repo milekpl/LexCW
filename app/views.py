@@ -1007,7 +1007,13 @@ def add_entry():
                               note_types=note_types,
                               configured_languages_codes=configured_languages_codes,
                               project_id=project_id,
-                              current_user_id=g.current_user.id if hasattr(g, 'current_user') and g.current_user else None)
+                              current_user_id=g.current_user.id if hasattr(g, 'current_user') and g.current_user else None,
+                              # Autosave + unsaved-changes guard are disabled
+                              # under pytest so they can't race test saves.
+                              autosave_enabled=not (
+                                  current_app.config.get('TESTING')
+                                  or current_app.config.get('E2E_TESTING')
+                              ))
 
     except ValidationError as e:
         return jsonify({"error": str(e)}), 400

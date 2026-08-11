@@ -594,6 +594,7 @@ def update_entry(entry_id: str) -> Any:
 
             # Update via xml service
             result = xml_service.update_entry(entry_id, entry_xml)
+            xml_updated = True
             if before_snapshot is not None:
                 _record_undo_operation(
                     'update', entry_id,
@@ -605,6 +606,19 @@ def update_entry(entry_id: str) -> Any:
             # Fall through to dict_service for entries not in xml service
             pass
         except Exception as e:
+            if locals().get('xml_updated'):
+                # The XML backend already wrote the entry with the FULL client
+                # XML. Falling through to the dict backend would re-write the
+                # entry with the lossy server serializer (dropping notes,
+                # subsenses, reversals, citations) — never do that. The
+                # post-update bookkeeping (snapshot/history) failed, but the
+                # edit itself is already saved; surface it as a success.
+                logger.warning(
+                    f"[SENSE UPDATE] xml_service update SUCCEEDED but post-save "
+                    f"step failed ({e}); edit is saved, not re-writing via "
+                    f"dict_service"
+                )
+                return jsonify({"success": True, "id": entry_id})
             logger.warning(
                 f"[SENSE UPDATE] xml_service update failed, falling back to dict_service: {e}"
             )
@@ -618,6 +632,20 @@ def update_entry(entry_id: str) -> Any:
 
         # Get existing entry BEFORE processing form data to preserve fields not in form
         existing_entry = get_dictionary_service().get_entry(entry_id)
+
+        # Optimistic concurrency: if the client sent the date_modified it loaded
+        # the entry with, reject the save when another write happened since
+        # (instead of silently clobbering the other user's edit).
+        expected_modified = data.get('expected_date_modified') or data.get('base_date_modified')
+        if expected_modified and existing_entry is not None:
+            current_modified = getattr(existing_entry, 'date_modified', None)
+            if current_modified and str(current_modified) != str(expected_modified):
+                return jsonify({
+                    'error': 'version_conflict',
+                    'message': 'This entry was modified elsewhere since you opened it.',
+                    'current': str(current_modified),
+                    'base': str(expected_modified),
+                }), 409
         logger.info(
             f"[SENSE UPDATE] Existing entry has {len(existing_entry.senses) if existing_entry and existing_entry.senses else 0} senses"
         )

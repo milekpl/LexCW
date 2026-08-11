@@ -141,6 +141,15 @@ class AutoSaveManager {
             
             if (response.ok && result.success) {
                 this.lastSaveVersion = result.newVersion;
+                // Keep the form's version token current: a subsequent manual
+                // save sends X-Base-Date-Modified = data-entry-modified, so it
+                // must reflect THIS autosave, not the page-load version —
+                // otherwise the user's own autosave would look like a
+                // concurrent edit and the manual save would false-409.
+                const formEl = document.getElementById('entry-form');
+                if (formEl && result.newVersion) {
+                    formEl.setAttribute('data-entry-modified', result.newVersion);
+                }
                 this.stateManager.markAsSaved();
                 this.showSaveIndicator('saved');
                 

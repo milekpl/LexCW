@@ -59,6 +59,20 @@ class DatabaseError(Exception):
         return self.message
 
 
+class VersionConflictError(Exception):
+    """Raised when an optimistic-concurrency (compare-and-swap) write fails
+    because the entry was modified since the client loaded it."""
+
+    def __init__(self, message="Entry was modified elsewhere", base=None, current=None):
+        self.message = message
+        self.base = base
+        self.current = current
+        super().__init__(self.message)
+
+    def __str__(self):
+        return f"{self.message} (base={self.base}, current={self.current})"
+
+
 class NotFoundError(Exception):
     """Exception raised when a resource is not found."""
     

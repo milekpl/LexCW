@@ -24,6 +24,7 @@ from typing import Any, Optional
 from xml.etree import ElementTree as ET
 
 from BaseXClient import BaseXClient
+from app.utils.exceptions import VersionConflictError
 from app.utils.xquery_builder import XQueryBuilder
 from app.utils.namespace_manager import LIFTNamespaceManager
 from app.utils.xml_security import reject_xxe
@@ -492,7 +493,10 @@ class XMLEntryService:
             logger.error(f"Failed to retrieve entry {entry_id}: {e}")
             raise XMLEntryServiceError(f"Failed to retrieve entry: {e}") from e
     
-    def update_entry(self, entry_id: str, xml_string: str) -> dict[str, Any]:
+    def update_entry(
+        self, entry_id: str, xml_string: str,
+        base_modified: Optional[str] = None,
+    ) -> dict[str, Any]:
         """
         Update an existing entry.
 
@@ -505,6 +509,11 @@ class XMLEntryService:
         Args:
             entry_id: Entry ID to update
             xml_string: New LIFT XML string
+            base_modified: Optional optimistic-concurrency token (the
+                dateModified the client loaded). When given, the replace is
+                conditional on the stored version still matching, and the
+                result is verified — a stale write raises
+                VersionConflictError instead of silently clobbering.
 
         Returns:
             Dictionary with entry ID and status
@@ -512,6 +521,8 @@ class XMLEntryService:
         Raises:
             EntryNotFoundError: If entry doesn't exist
             InvalidXMLError: If XML is invalid
+            VersionConflictError: If base_modified was given and the stored
+                version no longer matches (concurrent write)
             DatabaseConnectionError: If database operation fails
         """
         logger.debug("update_entry called for %s", entry_id)
@@ -569,9 +580,12 @@ class XMLEntryService:
             logger.error(f"Error preparing XML for update: {prep_error}")
             raise
         try:
-            # Single atomic update — replace the old entry node with the new one.
+            # Single atomic update — replace the old entry node with the new
+            # one. When base_modified is given this is a compare-and-swap: the
+            # replace only fires if the stored dateModified still matches.
             update_query = XQueryBuilder.build_update_entry_query(
-                entry_id, xml_clean, self.database, self._has_namespace
+                entry_id, xml_clean, self.database, self._has_namespace,
+                base_modified=base_modified,
             )
             
             logger.debug(f"Replacing entry {entry_id}")
@@ -586,6 +600,34 @@ class XMLEntryService:
             except Exception as flush_error:
                 logger.warning(f"Failed to flush database: {flush_error}")
             
+            # CAS verification: if a base version was supplied and the incoming
+            # XML carries a dateModified, the entry must now carry exactly that
+            # stamp. If it doesn't, the conditional replace matched nothing (or
+            # another write landed first/after) — do not report success.
+            if base_modified:
+                new_modified = root.get('dateModified') or root.get('date_modified')
+                if new_modified:
+                    verify_query = (
+                        f"for $e in collection()//{XQueryBuilder.get_element_path('entry', self._has_namespace)}"
+                        f"[@id=\"{entry_id}\"] return string($e/@dateModified)"
+                    )
+                    try:
+                        q_ver = session.query(verify_query)
+                        current_modified = q_ver.execute().strip()
+                        q_ver.close()
+                    except Exception as ver_error:
+                        logger.warning(f"CAS verification query failed for {entry_id}: {ver_error}")
+                        current_modified = None
+                    if current_modified and current_modified != new_modified:
+                        logger.warning(
+                            f"[XML UPDATE] CAS conflict on {entry_id}: expected "
+                            f"{new_modified}, found {current_modified}"
+                        )
+                        raise VersionConflictError(
+                            "Entry was modified elsewhere since you opened it",
+                            base=base_modified, current=current_modified,
+                        )
+            
             logger.info(f"Successfully updated entry: {entry_id}")
             
             return {
@@ -594,6 +636,10 @@ class XMLEntryService:
             }
             
         except Exception as e:
+            # Let optimistic-concurrency failures propagate as themselves so
+            # the API can map them to 409 (a conflict is not a server error).
+            if isinstance(e, VersionConflictError):
+                raise
             logger.error(f"Failed to update entry {entry_id}: {e}")
             raise XMLEntryServiceError(f"Failed to update entry: {e}") from e
     

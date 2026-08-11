@@ -75,25 +75,36 @@ def autosave_entry():
             from types import SimpleNamespace
             logger.warning('No injector on current_app; using local fallback services for autosave')
             # Minimal no-op replacements sufficient for integration tests
-            dictionary_service = SimpleNamespace(update_entry=lambda entry, skip_validation=False: None)
+            dictionary_service = SimpleNamespace(
+                update_entry=lambda entry, skip_validation=False, record_history=False: None
+            )
             event_bus = SimpleNamespace(emit=lambda *args, **kwargs: None)
             using_fallback = True
 
         # Create Entry object from entry_data
         entry = Entry.from_dict(entry_data)
 
-        # Persist the entry
-        dictionary_service.update_entry(entry, skip_validation=True)
+        # Stamp a fresh ISO version token: the autosave payload carries no
+        # dateModified, so without this the stored entry would LOSE its token
+        # on every autosave (breaking the manual save's concurrency check).
+        # The returned newVersion IS this token, so the client can refresh the
+        # form's data-entry-modified and a later manual save won't false-409
+        # against the user's own autosave.
+        new_version = datetime.now(timezone.utc).isoformat()
+        entry.date_modified = new_version
+
+        # Persist the entry. record_history=False: background autosaves must
+        # not pollute the undo stack (the same principle as the event-bus
+        # autosave handler).
+        dictionary_service.update_entry(entry, skip_validation=True, record_history=False)
 
         # Emit event after successful save
         entry_id = entry_data.get('id', 'unknown')
         event_bus.emit('entry_updated', {
             'entry_id': entry_id,
             'source': 'autosave',
-            'timestamp': datetime.now(timezone.utc).isoformat()
+            'timestamp': new_version
         })
-
-        new_version = str(datetime.now(timezone.utc).timestamp())
 
         logger.info(f"Auto-save successful for entry {entry_id}")
 

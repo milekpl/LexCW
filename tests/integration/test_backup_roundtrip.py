@@ -624,3 +624,329 @@ class TestMergeSplitUndoRedo:
                         ds.delete_entry(e_id, record_history=False)
                 except Exception:
                     pass
+
+
+@pytest.mark.integration
+class TestEditLossPrevention:
+    """The four edit-loss fixes: serializer, double-write, autosave, concurrency."""
+
+    def test_dict_backend_preserves_notes_and_subsenses(self, app, client):
+        """FIX 1: a dict-backend update must NOT wipe entry/sense notes or
+        subsenses (the server serializer now emits them)."""
+        with app.app_context():
+            from flask import current_app
+            from app.models.entry import Entry
+            from app.services.dictionary_service import DictionaryService
+
+            ds = current_app.injector.get(DictionaryService)
+            eid = f"loss_{uuid.uuid4().hex[:8]}"
+            try:
+                ds.create_entry(
+                    Entry.from_dict({
+                        "id": eid, "lexical_unit": {"en": "alpha"},
+                        "notes": {"general": {"en": "ENTRY-NOTE-KEEP"}},
+                        "senses": [{
+                            "id": "s1", "glosses": {"en": "g"},
+                            "notes": {"general": {"en": "SENSE-NOTE-KEEP"}},
+                            "subsenses": [{"id": "ss1", "glosses": {"en": "sub"}}],
+                        }],
+                    }),
+                    skip_validation=True,
+                )
+
+                # dict-backend update (the path that used to wipe fields)
+                e = ds.get_entry(eid)
+                e.lexical_unit = {"en": "beta"}
+                ds.update_entry(e, skip_validation=True)
+
+                e2 = ds.get_entry(eid)
+                assert e2.lexical_unit.get("en") == "beta"
+                entry_note = e2.notes.get("general", {}).get("en")
+                if isinstance(entry_note, dict):
+                    entry_note = entry_note.get("text")
+                assert entry_note == "ENTRY-NOTE-KEEP", (
+                    f"entry notes wiped: {e2.notes}"
+                )
+                sense_note = e2.senses[0].notes.get("general", {}).get("en")
+                if isinstance(sense_note, dict):
+                    sense_note = sense_note.get("text")
+                assert sense_note == "SENSE-NOTE-KEEP", (
+                    f"sense notes wiped: {e2.senses[0].notes}"
+                )
+                assert len(e2.senses[0].subsenses) == 1, (
+                    f"subsenses wiped: {e2.senses[0].subsenses}"
+                )
+            finally:
+                try:
+                    if ds.entry_exists(eid):
+                        ds.delete_entry(eid, record_history=False)
+                except Exception:
+                    pass
+
+    def test_xml_update_version_conflict_returns_409(self, app, client):
+        """FIX 4: saving with a stale base dateModified is rejected with 409."""
+        with app.app_context():
+            from flask import current_app
+            from app.models.entry import Entry
+            from app.services.dictionary_service import DictionaryService
+
+            ds = current_app.injector.get(DictionaryService)
+            eid = f"conf_{uuid.uuid4().hex[:8]}"
+            try:
+                ds.create_entry(
+                    Entry.from_dict(
+                        {"id": eid, "lexical_unit": {"en": "alpha"}, "senses": []}
+                    ),
+                    skip_validation=True,
+                )
+                current = ds.get_entry(eid)
+                loaded_modified = current.date_modified
+
+                # Another write happens after the client "loaded" the entry.
+                # (A real concurrent save goes through the API, which stamps a
+                # fresh date_modified; simulate that here.)
+                e = ds.get_entry(eid)
+                e.lexical_unit = {"en": "changed-by-other"}
+                e.date_modified = "2099-01-01T00:00:00Z"
+                ds.update_entry(e, skip_validation=True)
+
+                # Client saves with its STALE base -> 409
+                xml = (
+                    '<?xml version="1.0" encoding="UTF-8"?>'
+                    f'<entry id="{eid}"><lexical-unit>'
+                    '<form lang="en"><text>client-write</text></form>'
+                    '</lexical-unit></entry>'
+                )
+                resp = client.put(
+                    f"/api/xml/entries/{eid}",
+                    data=xml,
+                    content_type="application/xml",
+                    headers={"X-Base-Date-Modified": str(loaded_modified)},
+                )
+                assert resp.status_code == 409, f"expected 409, got {resp.status_code}"
+                data = resp.get_json()
+                assert data.get("error") == "version_conflict"
+
+                # The other user's edit is untouched
+                after = ds.get_entry(eid)
+                assert after.lexical_unit.get("en") == "changed-by-other"
+            finally:
+                try:
+                    if ds.entry_exists(eid):
+                        ds.delete_entry(eid, record_history=False)
+                except Exception:
+                    pass
+
+
+    def test_entry_form_renders_version_token(self, app, client):
+        """FIX 4 wiring: the entry form must expose the load-time date_modified
+        on the <form> element so submitForm can send X-Base-Date-Modified."""
+        with app.app_context():
+            from flask import current_app
+            from app.models.entry import Entry
+            from app.services.dictionary_service import DictionaryService
+
+            ds = current_app.injector.get(DictionaryService)
+            eid = f"wiring_{uuid.uuid4().hex[:8]}"
+            try:
+                ds.create_entry(
+                    Entry.from_dict({"id": eid, "lexical_unit": {"en": "alpha"}, "senses": []}),
+                    skip_validation=True,
+                )
+                # Production saves (API/client) stamp date_modified; simulate it
+                # so the stored entry actually carries a version token.
+                seeded = ds.get_entry(eid)
+                seeded.date_modified = "2025-01-01T00:00:00Z"
+                ds.update_entry(seeded, skip_validation=True)
+
+                resp = client.get(f"/entries/{eid}/edit")
+                assert resp.status_code == 200, f"edit page: {resp.status_code}"
+                html = resp.get_data(as_text=True)
+                # the token must be on the form element itself (submitForm reads it there)
+                form_tag = html.split('<form id="entry-form"', 1)[1].split(">", 1)[0]
+                assert "data-entry-modified=" in form_tag, (
+                    f"data-entry-modified missing on #entry-form: {form_tag}"
+                )
+                assert "data-entry-modified=\"\"" not in form_tag, (
+                    "data-entry-modified rendered empty — entry has no date_modified?"
+                )
+            finally:
+                try:
+                    if ds.entry_exists(eid):
+                        ds.delete_entry(eid, record_history=False)
+                except Exception:
+                    pass
+
+
+    def test_autosave_refreshes_version_token_no_false_conflict(self, app, client):
+        """Autosave must keep the stored dateModified alive and return it as
+        newVersion, so a manual save right after an autosave does NOT 409
+        against the user's own autosave (the false-conflict edge)."""
+        with app.app_context():
+            from flask import current_app
+            from app.models.entry import Entry
+            from app.services.dictionary_service import DictionaryService
+
+            ds = current_app.injector.get(DictionaryService)
+            eid = f"auto_{uuid.uuid4().hex[:8]}"
+            try:
+                ds.create_entry(
+                    Entry.from_dict({
+                        "id": eid, "lexical_unit": {"en": "alpha"},
+                        "senses": [{"id": "s1", "glosses": {"en": "g"}, "definition": {"en": "a meaning"}}],
+                    }),
+                    skip_validation=True,
+                )
+                seeded = ds.get_entry(eid)
+                seeded.date_modified = "2025-01-01T00:00:00Z"
+                ds.update_entry(seeded, skip_validation=True)
+
+                # 1) autosave fires
+                resp = client.post("/api/entry/autosave", json={
+                    "entryData": {"id": eid, "lexical_unit": {"en": "alpha"},
+                                  "senses": [{"id": "s1", "glosses": {"en": "g"}, "definition": {"en": "a meaning"}}]},
+                    "version": "1.0",
+                    "timestamp": "2025-01-01T00:00:00Z",
+                })
+                assert resp.status_code == 200, resp.get_json()
+                data = resp.get_json()
+                assert data["success"] is True
+                new_version = data["newVersion"]
+                assert new_version and "T" in new_version, (
+                    f"newVersion must be an ISO token, got {new_version!r}"
+                )
+
+                # 2) the stored entry kept a version token == newVersion
+                after = ds.get_entry(eid)
+                assert str(after.date_modified) == str(new_version), (
+                    f"stored date_modified {after.date_modified!r} != newVersion {new_version!r}"
+                )
+
+                # 3) a manual save carrying that token must NOT false-conflict
+                xml = (
+                    '<?xml version="1.0" encoding="UTF-8"?>'
+                    f'<entry id="{eid}" dateModified="2025-02-02T00:00:00Z">'
+                    '<lexical-unit><form lang="en"><text>manual</text></form>'
+                    '</lexical-unit></entry>'
+                )
+                mresp = client.put(
+                    f"/api/xml/entries/{eid}",
+                    data=xml,
+                    content_type="application/xml",
+                    headers={"X-Base-Date-Modified": str(new_version)},
+                )
+                assert mresp.status_code == 200, (
+                    f"manual save after autosave false-409'd: {mresp.status_code} "
+                    f"{mresp.get_json()}"
+                )
+            finally:
+                try:
+                    if ds.entry_exists(eid):
+                        ds.delete_entry(eid, record_history=False)
+                except Exception:
+                    pass
+
+
+@pytest.mark.integration
+class TestMergeSplitRealUndo:
+    """Merge/split undo/redo must restore REAL data (not just move stacks)."""
+
+    def test_split_undo_redo_restores_real_data(self, app, client):
+        with app.app_context():
+            from flask import current_app
+            from app.models.entry import Entry
+            from app.services.dictionary_service import DictionaryService
+            from app.services.merge_split_service import MergeSplitService
+
+            ds = current_app.injector.get(DictionaryService)
+            mss = current_app.injector.get(MergeSplitService)
+            eid = f"sp_{uuid.uuid4().hex[:6]}"
+            try:
+                ds.create_entry(Entry.from_dict({
+                    "id": eid, "lexical_unit": {"en": "word"},
+                    "senses": [
+                        {"id": "s1", "glosses": {"en": "one"}, "definition": {"en": "d1"}},
+                        {"id": "s2", "glosses": {"en": "two"}, "definition": {"en": "d2"}},
+                    ],
+                }), skip_validation=True, record_history=False)
+
+                op = mss.split_entry(
+                    eid, ["s2"], {"lexical_unit": {"en": "word2"}}
+                )
+                new_id = op.target_id
+                assert len(ds.get_entry(eid).senses) == 1, "split moved the sense"
+                assert ds.entry_exists(new_id)
+
+                # UNDO: new entry deleted, source restored with BOTH senses
+                assert mss.undo_last_operation() is True
+                restored = ds.get_entry(eid)
+                assert len(restored.senses) == 2, f"undo did not restore sense: {len(restored.senses)}"
+                sense_ids = {s.id for s in restored.senses}
+                assert sense_ids == {"s1", "s2"}
+                assert not ds.entry_exists(new_id)
+
+                # REDO: sense moves out again, new entry re-created (fresh id)
+                assert mss.redo_last_operation() is True
+                re_split = ds.get_entry(eid)
+                assert len(re_split.senses) == 1 and re_split.senses[0].id == "s1"
+                split_ids = ds.db_connector.execute_query(
+                    f"xquery for $e in collection('{ds.db_connector.database}')"
+                    f"//*:entry[starts-with(@id, '{eid}_split_')] return string($e/@id)"
+                ).strip().split()
+                assert split_ids, (
+                    f"redo did not re-create the split entry: {split_ids}"
+                )
+            finally:
+                for eid_cleanup in [eid, new_id]:
+                    try:
+                        if ds.entry_exists(eid_cleanup):
+                            ds.delete_entry(eid_cleanup, record_history=False)
+                    except Exception:
+                        pass
+
+    def test_merge_undo_redo_restores_real_data(self, app, client):
+        with app.app_context():
+            from flask import current_app
+            from app.models.entry import Entry
+            from app.services.dictionary_service import DictionaryService
+            from app.services.merge_split_service import MergeSplitService
+
+            ds = current_app.injector.get(DictionaryService)
+            mss = current_app.injector.get(MergeSplitService)
+            a_id = f"ma_{uuid.uuid4().hex[:6]}"
+            b_id = f"mb_{uuid.uuid4().hex[:6]}"
+            try:
+                ds.create_entry(Entry.from_dict({
+                    "id": a_id, "lexical_unit": {"en": "alpha"},
+                    "senses": [
+                        {"id": "a1", "glosses": {"en": "a one"}, "definition": {"en": "d1"}},
+                        {"id": "a2", "glosses": {"en": "a two"}, "definition": {"en": "d2"}},
+                    ],
+                }), skip_validation=True, record_history=False)
+                ds.create_entry(Entry.from_dict({
+                    "id": b_id, "lexical_unit": {"en": "beta"},
+                    "senses": [{"id": "b1", "glosses": {"en": "b one"}, "definition": {"en": "d3"}}],
+                }), skip_validation=True, record_history=False)
+
+                mss.merge_entries(a_id, b_id, ["b1"])
+                assert len(ds.get_entry(a_id).senses) == 3
+                assert not ds.entry_exists(b_id), "empty source entry deleted on merge"
+
+                # UNDO: target restored, source re-created with its sense
+                assert mss.undo_last_operation() is True
+                assert len(ds.get_entry(a_id).senses) == 2
+                assert ds.entry_exists(b_id)
+                assert len(ds.get_entry(b_id).senses) == 1
+                assert ds.get_entry(b_id).senses[0].id == "b1"
+
+                # REDO: merge applied again
+                assert mss.redo_last_operation() is True
+                assert len(ds.get_entry(a_id).senses) == 3
+                assert not ds.entry_exists(b_id)
+            finally:
+                for eid_cleanup in [a_id, b_id]:
+                    try:
+                        if ds.entry_exists(eid_cleanup):
+                            ds.delete_entry(eid_cleanup, record_history=False)
+                    except Exception:
+                        pass

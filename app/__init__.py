@@ -904,27 +904,29 @@ def create_app(config_name=None):
         )
         binder.bind(AIService, to=ai_service, scope=singleton)
 
-        # Initialize and bind BulkOperationsService for bulk entry operations
-        from app.services.bulk_operations_service import BulkOperationsService
+        # Initialize and bind the consolidated BulkService (one instance
+        # exposing query / action / operations / rollback). The legacy class
+        # names remain aliases of the same singleton so all consumers share
+        # one service instead of four parallel ones.
+        from app.services.bulk_service import (
+            BulkService,
+            BulkOperationsService,
+            BulkQueryService,
+            BulkActionService,
+        )
         from app.services.workset_service import WorksetService
 
         workset_service = WorksetService()
         binder.bind(WorksetService, to=workset_service, scope=singleton)
-        bulk_operations_service = BulkOperationsService(
+        bulk_service = BulkService(
             dictionary_service=dictionary_service,
             workset_service=workset_service,
             history_service=operation_history_service,
         )
-        binder.bind(BulkOperationsService, to=bulk_operations_service, scope=singleton)
-
-        # Initialize and bind BulkQueryService and BulkActionService for advanced bulk operations
-        from app.services.bulk_query_service import BulkQueryService
-        from app.services.bulk_action_service import BulkActionService
-
-        bulk_query_service = BulkQueryService(dictionary_service=dictionary_service)
-        bulk_action_service = BulkActionService(dictionary_service=dictionary_service)
-        binder.bind(BulkQueryService, to=bulk_query_service, scope=singleton)
-        binder.bind(BulkActionService, to=bulk_action_service, scope=singleton)
+        binder.bind(BulkService, to=bulk_service, scope=singleton)
+        binder.bind(BulkOperationsService, to=bulk_service, scope=singleton)
+        binder.bind(BulkQueryService, to=bulk_service, scope=singleton)
+        binder.bind(BulkActionService, to=bulk_service, scope=singleton)
 
     # After DI, set a flag if this is a first-run (no project settings configured)
     with app.app_context():

@@ -1103,6 +1103,13 @@ async function submitForm() {
       Accept: "application/json",
     });
 
+    // Optimistic concurrency: send the dateModified this entry was LOADED with,
+    // so the server can reject the save if another write happened since.
+    const baseModified = form.getAttribute("data-entry-modified");
+    if (baseModified) {
+      headers["X-Base-Date-Modified"] = baseModified;
+    }
+
     const response = await fetch(apiUrl, {
       method: apiMethod,
       headers: headers,
@@ -1130,6 +1137,20 @@ async function submitForm() {
           .map((err) => `• ${err}`)
           .join("\n");
         throw new Error(`Validation failed:\n${errorList}`);
+      } else if (responseData.error === "version_conflict") {
+        // Another user (or another tab) saved this entry since it was loaded.
+        // Do NOT overwrite their edit. Offer a reload to see the latest data.
+        const msg =
+          "This entry was modified elsewhere since you opened it.\n" +
+          "Your edits are still in this form. Reload to see the latest version?";
+        if (window.confirm(msg)) {
+          window.location.reload();
+        }
+        throw new Error("version_conflict: entry was modified elsewhere");
+      } else if (responseData.error === "version_check_failed") {
+        throw new Error(
+          responseData.message || "Could not verify the entry version. Please reload and try again."
+        );
       } else {
         // Extract a more detailed error message if available
         const errorMessage =

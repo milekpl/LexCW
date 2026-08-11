@@ -176,6 +176,243 @@ class LIFTParser:
                     raise
         return entries
 
+    def _serialize_sense_elem(self, sense_elem: ET.Element, sense) -> None:
+        """Populate a <sense> (or <subsense>) element from a Sense object.
+
+        Emits the sense's content, including notes, reversals and subsenses
+        (previously dropped by this serializer — any dict-backend write
+        silently erased them from the entry in BaseX).
+        """
+        
+        if sense.grammatical_info:
+            gram_info = ET.SubElement(sense_elem, f"{{{self.NSMAP['lift']}}}grammatical-info", {'value': sense.grammatical_info})
+            # Add grammatical traits inside grammatical-info
+            if hasattr(sense, 'grammatical_traits') and sense.grammatical_traits:
+                for trait_name, trait_value in sense.grammatical_traits.items():
+                    ET.SubElement(gram_info, f"{{{self.NSMAP['lift']}}}trait", {
+                        'name': trait_name, 
+                        'value': trait_value
+                    })
+        
+        if hasattr(sense, 'definition') and sense.definition:
+            defn = ET.SubElement(sense_elem, f"{{{self.NSMAP['lift']}}}definition")
+            for lang, text in sense.definition.items():
+                form = ET.SubElement(defn, f"{{{self.NSMAP['lift']}}}form", {'lang': lang})
+                text_val = text['text'] if isinstance(text, dict) else text
+                ET.SubElement(form, f"{{{self.NSMAP['lift']}}}text").text = str(text_val)
+        
+        if hasattr(sense, 'gloss') and sense.gloss:
+            for lang, text in sense.gloss.items():
+                gloss = ET.SubElement(sense_elem, f"{{{self.NSMAP['lift']}}}gloss", {'lang': lang})
+                text_val = text['text'] if isinstance(text, dict) else text
+                ET.SubElement(gloss, f"{{{self.NSMAP['lift']}}}text").text = str(text_val)
+        
+        # Add sense-level traits
+        if hasattr(sense, 'usage_type') and sense.usage_type:
+            for usage in sense.usage_type:
+                ET.SubElement(sense_elem, f"{{{self.NSMAP['lift']}}}trait", {
+                    'name': 'usage-type', 
+                    'value': usage
+                })
+        
+        if hasattr(sense, 'domain_type') and sense.domain_type:
+            # domain_type is a list of values; serialize one trait per value
+            for domain in sense.domain_type:
+                ET.SubElement(sense_elem, f"{{{self.NSMAP['lift']}}}trait", {
+                    'name': 'domain-type', 
+                    'value': domain
+                })
+        
+        if hasattr(sense, 'semantic_domains') and sense.semantic_domains:
+            for domain in sense.semantic_domains:
+                ET.SubElement(sense_elem, f"{{{self.NSMAP['lift']}}}trait", {
+                    'name': 'semantic-domain-ddp4', 
+                    'value': domain
+                })
+        
+        # Add other sense traits if present
+        if hasattr(sense, 'traits') and sense.traits:
+            for trait_name, trait_value in sense.traits.items():
+                ET.SubElement(sense_elem, f"{{{self.NSMAP['lift']}}}trait", {
+                    'name': trait_name, 
+                    'value': trait_value
+                })
+        # Add examples
+        # Add specific custom fields first (exemplar, scientific-name, literal-meaning)
+        if hasattr(sense, 'exemplar') and sense.exemplar:
+            field_elem = ET.SubElement(sense_elem, f"{{{self.NSMAP['lift']}}}field", {'type': 'exemplar'})
+            for lang, text in sense.exemplar.items():
+                form = ET.SubElement(field_elem, f"{{{self.NSMAP['lift']}}}form", {'lang': lang})
+                ET.SubElement(form, f"{{{self.NSMAP['lift']}}}text").text = str(text)
+        
+        if hasattr(sense, 'scientific_name') and sense.scientific_name:
+            field_elem = ET.SubElement(sense_elem, f"{{{self.NSMAP['lift']}}}field", {'type': 'scientific-name'})
+            for lang, text in sense.scientific_name.items():
+                form = ET.SubElement(field_elem, f"{{{self.NSMAP['lift']}}}form", {'lang': lang})
+                ET.SubElement(form, f"{{{self.NSMAP['lift']}}}text").text = str(text)
+        
+        if hasattr(sense, 'literal_meaning') and sense.literal_meaning:
+            field_elem = ET.SubElement(sense_elem, f"{{{self.NSMAP['lift']}}}field", {'type': 'literal-meaning'})
+            for lang, text in sense.literal_meaning.items():
+                form = ET.SubElement(field_elem, f"{{{self.NSMAP['lift']}}}form", {'lang': lang})
+                ET.SubElement(form, f"{{{self.NSMAP['lift']}}}text").text = str(text)
+        
+        # Add other sense-level custom fields
+        if hasattr(sense, 'custom_fields') and sense.custom_fields:
+            for field_type, field_content in sense.custom_fields.items():
+                # Skip specific field types that are handled separately
+                if field_type in ['exemplar', 'scientific-name', 'literal-meaning']:
+                    continue
+                field_elem = ET.SubElement(sense_elem, f"{{{self.NSMAP['lift']}}}field", { 'type': field_type})
+                for lang, text in field_content.items():
+                    form = ET.SubElement(field_elem, f"{{{self.NSMAP['lift']}}}form", { 'lang': lang})
+                    ET.SubElement(form, f"{{{self.NSMAP['lift']}}}text").text = str(text)
+        if hasattr(sense, 'examples') and sense.examples:
+            for example in sense.examples:
+                # Handle both dict and Example object formats
+                if isinstance(example, dict):
+                    # Legacy format - simple example
+                    example_elem = ET.SubElement(sense_elem, f"{{{self.NSMAP['lift']}}}example")
+                    if 'en' in example:
+                        form = ET.SubElement(example_elem, f"{{{self.NSMAP['lift']}}}form", {'lang': 'en'})
+                        ET.SubElement(form, f"{{{self.NSMAP['lift']}}}text").text = str(example['en'])
+                elif hasattr(example, 'form') and example.form:
+                    # New Example object format with enhancements
+                    example_attrib = {}
+                    if hasattr(example, 'id') and example.id:
+                        example_attrib['id'] = example.id
+                    if hasattr(example, 'source') and example.source:
+                        example_attrib['source'] = example.source
+                    
+                    example_elem = ET.SubElement(sense_elem, f"{{{self.NSMAP['lift']}}}example", example_attrib)
+                    
+                    # Add form
+                    for lang, text in example.form.items():
+                        form = ET.SubElement(example_elem, f"{{{self.NSMAP['lift']}}}form", {'lang': lang})
+                        ET.SubElement(form, f"{{{self.NSMAP['lift']}}}text").text = str(text)
+                    
+                    # Add translations
+                    if hasattr(example, 'translations') and example.translations:
+                        for lang, text in example.translations.items():
+                            translation = ET.SubElement(example_elem, f"{{{self.NSMAP['lift']}}}translation")
+                            form = ET.SubElement(translation, f"{{{self.NSMAP['lift']}}}form", {'lang': lang})
+                            ET.SubElement(form, f"{{{self.NSMAP['lift']}}}text").text = str(text)
+                    
+                    # Add note if present
+                    if hasattr(example, 'note') and example.note:
+                        note_field = ET.SubElement(example_elem, f"{{{self.NSMAP['lift']}}}field", {'type': 'note'})
+                        for lang, text in example.note.items():
+                            form = ET.SubElement(note_field, f"{{{self.NSMAP['lift']}}}form", {'lang': lang})
+                            ET.SubElement(form, f"{{{self.NSMAP['lift']}}}text").text = str(text)
+                    
+                    # Add custom fields if present
+                    if hasattr(example, 'custom_fields') and example.custom_fields:
+                        for field_type, field_content in example.custom_fields.items():
+                            field_elem = ET.SubElement(example_elem, f"{{{self.NSMAP['lift']}}}field", {'type': field_type})
+                            for lang, text in field_content.items():
+                                form = ET.SubElement(field_elem, f"{{{self.NSMAP['lift']}}}form", {'lang': lang})
+                                ET.SubElement(form, f"{{{self.NSMAP['lift']}}}text").text = str(text)
+        
+        # Add sense-level annotations
+        if hasattr(sense, 'annotations') and sense.annotations:
+            for annotation in sense.annotations:
+                annotation_attrib = {
+                    'name': annotation.get('name', '')
+                }
+                if 'value' in annotation and annotation['value']:
+                    annotation_attrib['value'] = annotation['value']
+                if 'who' in annotation and annotation['who']:
+                    annotation_attrib['who'] = annotation['who']
+                if 'when' in annotation and annotation['when']:
+                    annotation_attrib['when'] = annotation['when']
+                
+                annotation_elem = ET.SubElement(sense_elem, f"{{{self.NSMAP['lift']}}}annotation", annotation_attrib)
+                
+                # Add content if present
+                if 'content' in annotation and annotation['content']:
+                    for lang, text in annotation['content'].items():
+                        form = ET.SubElement(annotation_elem, f"{{{self.NSMAP['lift']}}}form", {'lang': lang})
+                        ET.SubElement(form, f"{{{self.NSMAP['lift']}}}text").text = str(text)
+        
+        # Add sense-level relations
+        if hasattr(sense, 'relations') and sense.relations:
+            for relation in sense.relations:
+                rel_attrib = {'type': relation.get('type', ''), 'ref': relation.get('ref', '')}
+                if 'order' in relation and relation['order'] is not None:
+                    rel_attrib['order'] = str(relation['order'])
+                
+                relation_elem = ET.SubElement(sense_elem, f"{{{self.NSMAP['lift']}}}relation", rel_attrib)
+                
+                # Add traits if present
+                if 'traits' in relation and relation['traits']:
+                    for trait_name, trait_value in relation['traits'].items():
+                        ET.SubElement(relation_elem, f"{{{self.NSMAP['lift']}}}trait", {
+                            'name': trait_name, 
+                            'value': trait_value
+                        })
+
+        # Add illustrations
+        if hasattr(sense, 'illustrations') and sense.illustrations:
+            for illustration in sense.illustrations:
+                ill_elem = ET.SubElement(sense_elem, f"{{{self.NSMAP['lift']}}}illustration", {'href': illustration['href']})
+                
+                # Add label if present
+                if 'label' in illustration and illustration['label']:
+                    label_elem = ET.SubElement(ill_elem, f"{{{self.NSMAP['lift']}}}label")
+                    for lang, text in illustration['label'].items():
+                        form = ET.SubElement(label_elem, f"{{{self.NSMAP['lift']}}}form", {'lang': lang})
+                        ET.SubElement(form, f"{{{self.NSMAP['lift']}}}text").text = str(text)
+            
+        # Add notes (LIFT <note type="...">)
+        if hasattr(sense, 'notes') and sense.notes:
+            for note_type, note_data in sense.notes.items():
+                note_elem = ET.SubElement(sense_elem, f"{{{self.NSMAP['lift']}}}note", {'type': str(note_type)})
+                if isinstance(note_data, str):
+                    form = ET.SubElement(note_elem, f"{{{self.NSMAP['lift']}}}form", {'lang': 'en'})
+                    ET.SubElement(form, f"{{{self.NSMAP['lift']}}}text").text = note_data
+                elif isinstance(note_data, dict):
+                    for lang, text in note_data.items():
+                        if text:
+                            form = ET.SubElement(note_elem, f"{{{self.NSMAP['lift']}}}form", {'lang': lang})
+                            text_val = text['text'] if isinstance(text, dict) else text
+                            ET.SubElement(form, f"{{{self.NSMAP['lift']}}}text").text = str(text_val)
+                elif note_data is not None:
+                    form = ET.SubElement(note_elem, f"{{{self.NSMAP['lift']}}}form", {'lang': 'en'})
+                    ET.SubElement(form, f"{{{self.NSMAP['lift']}}}text").text = str(note_data)
+
+        # Add reversals (LIFT <reversal type="..."><form .../></reversal>)
+        if hasattr(sense, 'reversals') and sense.reversals:
+            for reversal in sense.reversals:
+                if not isinstance(reversal, dict):
+                    continue
+                rev_elem = ET.SubElement(sense_elem, f"{{{self.NSMAP['lift']}}}reversal")
+                if reversal.get('type'):
+                    rev_elem.set('type', str(reversal['type']))
+                rev_forms = reversal.get('forms') or {}
+                if not rev_forms:
+                    rev_forms = {
+                        k: v for k, v in reversal.items()
+                        if k not in ('type', 'forms', 'grammatical_info', 'grammaticalInfo')
+                        and isinstance(v, (str, dict))
+                    }
+                if isinstance(rev_forms, dict):
+                    for lang, text in rev_forms.items():
+                        if text:
+                            form = ET.SubElement(rev_elem, f"{{{self.NSMAP['lift']}}}form", {'lang': lang})
+                            text_val = text['text'] if isinstance(text, dict) else text
+                            ET.SubElement(form, f"{{{self.NSMAP['lift']}}}text").text = str(text_val)
+
+        # Add subsenses (recursive LIFT <subsense> structure)
+        if hasattr(sense, 'subsenses') and sense.subsenses:
+            for subsense in sense.subsenses:
+                # Sense model keeps subsenses as raw dicts (from
+                # Entry.from_dict) — coerce before recursing.
+                if isinstance(subsense, dict):
+                    subsense = Sense(**subsense)
+                subsense_elem = ET.SubElement(sense_elem, f"{{{self.NSMAP['lift']}}}subsense")
+                self._serialize_sense_elem(subsense_elem, subsense)
+
+
     def generate_lift_string(self, entries: List[Entry]) -> str:
         """Generate LIFT XML string from Entry objects."""
         # Ensure namespaces are registered
@@ -279,13 +516,6 @@ class LIFTParser:
                     for lang, text in field_content.items():
                         form = ET.SubElement(field_elem, f"{{{self.NSMAP['lift']}}}form", {'lang': lang})
                         ET.SubElement(form, f"{{{self.NSMAP['lift']}}}text").text = str(text)
-            # Entry-level custom fields
-            if hasattr(entry, 'custom_fields') and entry.custom_fields:
-                for field_type, field_content in entry.custom_fields.items():
-                    field_elem = ET.SubElement(entry_elem, f"{{{self.NSMAP['lift']}}}field", {'type': field_type})
-                    for lang, text in field_content.items():
-                        form = ET.SubElement(field_elem, f"{{{self.NSMAP['lift']}}}form", {'lang': lang})
-                        ET.SubElement(form, f"{{{self.NSMAP['lift']}}}text").text = str(text)
             
             # Annotations
             if hasattr(entry, 'annotations') and entry.annotations:
@@ -308,191 +538,48 @@ class LIFTParser:
                             form = ET.SubElement(annotation_elem, f"{{{self.NSMAP['lift']}}}form", {'lang': lang})
                             ET.SubElement(form, f"{{{self.NSMAP['lift']}}}text").text = str(text)
             
-            # Senses
+            # Add entry-level notes (LIFT <note type="...">)
+            if hasattr(entry, 'notes') and entry.notes:
+                for note_type, note_data in entry.notes.items():
+                    note_elem = ET.SubElement(entry_elem, f"{{{self.NSMAP['lift']}}}note", {'type': str(note_type)})
+                    if isinstance(note_data, str):
+                        form = ET.SubElement(note_elem, f"{{{self.NSMAP['lift']}}}form", {'lang': 'en'})
+                        ET.SubElement(form, f"{{{self.NSMAP['lift']}}}text").text = note_data
+                    elif isinstance(note_data, dict):
+                        for lang, text in note_data.items():
+                            if text:
+                                form = ET.SubElement(note_elem, f"{{{self.NSMAP['lift']}}}form", {'lang': lang})
+                                text_val = text['text'] if isinstance(text, dict) else text
+                                ET.SubElement(form, f"{{{self.NSMAP['lift']}}}text").text = str(text_val)
+                    elif note_data is not None:
+                        form = ET.SubElement(note_elem, f"{{{self.NSMAP['lift']}}}form", {'lang': 'en'})
+                        ET.SubElement(form, f"{{{self.NSMAP['lift']}}}text").text = str(note_data)
+
+            # Add entry-level citations (LIFT <citation><form .../></citation>)
+            if hasattr(entry, 'citations') and entry.citations:
+                for citation in entry.citations:
+                    if not isinstance(citation, dict):
+                        continue
+                    cite_elem = ET.SubElement(entry_elem, f"{{{self.NSMAP['lift']}}}citation")
+                    if 'lang' in citation and 'text' in citation:
+                        cite_items = [(citation['lang'], citation['text'])]
+                    else:
+                        cite_items = [
+                            (k, v) for k, v in citation.items()
+                            if isinstance(v, (str, dict))
+                        ]
+                    for lang, text in cite_items:
+                        if text:
+                            form = ET.SubElement(cite_elem, f"{{{self.NSMAP['lift']}}}form", {'lang': lang})
+                            text_val = text['text'] if isinstance(text, dict) else text
+                            ET.SubElement(form, f"{{{self.NSMAP['lift']}}}text").text = str(text_val)
+
             for sense in entry.senses:
                 s_attrib = {'id': sense.id} if sense.id else {}
                 sense_elem = ET.SubElement(entry_elem, f"{{{self.NSMAP['lift']}}}sense", s_attrib)
-                
-                if sense.grammatical_info:
-                    gram_info = ET.SubElement(sense_elem, f"{{{self.NSMAP['lift']}}}grammatical-info", {'value': sense.grammatical_info})
-                    # Add grammatical traits inside grammatical-info
-                    if hasattr(sense, 'grammatical_traits') and sense.grammatical_traits:
-                        for trait_name, trait_value in sense.grammatical_traits.items():
-                            ET.SubElement(gram_info, f"{{{self.NSMAP['lift']}}}trait", {
-                                'name': trait_name, 
-                                'value': trait_value
-                            })
-                
-                if hasattr(sense, 'definition') and sense.definition:
-                    defn = ET.SubElement(sense_elem, f"{{{self.NSMAP['lift']}}}definition")
-                    for lang, text in sense.definition.items():
-                        form = ET.SubElement(defn, f"{{{self.NSMAP['lift']}}}form", {'lang': lang})
-                        text_val = text['text'] if isinstance(text, dict) else text
-                        ET.SubElement(form, f"{{{self.NSMAP['lift']}}}text").text = str(text_val)
-                
-                if hasattr(sense, 'gloss') and sense.gloss:
-                    for lang, text in sense.gloss.items():
-                        gloss = ET.SubElement(sense_elem, f"{{{self.NSMAP['lift']}}}gloss", {'lang': lang})
-                        text_val = text['text'] if isinstance(text, dict) else text
-                        ET.SubElement(gloss, f"{{{self.NSMAP['lift']}}}text").text = str(text_val)
-                
-                # Add sense-level traits
-                if hasattr(sense, 'usage_type') and sense.usage_type:
-                    for usage in sense.usage_type:
-                        ET.SubElement(sense_elem, f"{{{self.NSMAP['lift']}}}trait", {
-                            'name': 'usage-type', 
-                            'value': usage
-                        })
-                
-                if hasattr(sense, 'domain_type') and sense.domain_type:
-                    # domain_type is a list of values; serialize one trait per value
-                    for domain in sense.domain_type:
-                        ET.SubElement(sense_elem, f"{{{self.NSMAP['lift']}}}trait", {
-                            'name': 'domain-type', 
-                            'value': domain
-                        })
-                
-                if hasattr(sense, 'semantic_domains') and sense.semantic_domains:
-                    for domain in sense.semantic_domains:
-                        ET.SubElement(sense_elem, f"{{{self.NSMAP['lift']}}}trait", {
-                            'name': 'semantic-domain-ddp4', 
-                            'value': domain
-                        })
-                
-                # Add other sense traits if present
-                if hasattr(sense, 'traits') and sense.traits:
-                    for trait_name, trait_value in sense.traits.items():
-                        ET.SubElement(sense_elem, f"{{{self.NSMAP['lift']}}}trait", {
-                            'name': trait_name, 
-                            'value': trait_value
-                        })
-                # Add examples
-                # Add specific custom fields first (exemplar, scientific-name, literal-meaning)
-                if hasattr(sense, 'exemplar') and sense.exemplar:
-                    field_elem = ET.SubElement(sense_elem, f"{{{self.NSMAP['lift']}}}field", {'type': 'exemplar'})
-                    for lang, text in sense.exemplar.items():
-                        form = ET.SubElement(field_elem, f"{{{self.NSMAP['lift']}}}form", {'lang': lang})
-                        ET.SubElement(form, f"{{{self.NSMAP['lift']}}}text").text = str(text)
-                
-                if hasattr(sense, 'scientific_name') and sense.scientific_name:
-                    field_elem = ET.SubElement(sense_elem, f"{{{self.NSMAP['lift']}}}field", {'type': 'scientific-name'})
-                    for lang, text in sense.scientific_name.items():
-                        form = ET.SubElement(field_elem, f"{{{self.NSMAP['lift']}}}form", {'lang': lang})
-                        ET.SubElement(form, f"{{{self.NSMAP['lift']}}}text").text = str(text)
-                
-                if hasattr(sense, 'literal_meaning') and sense.literal_meaning:
-                    field_elem = ET.SubElement(sense_elem, f"{{{self.NSMAP['lift']}}}field", {'type': 'literal-meaning'})
-                    for lang, text in sense.literal_meaning.items():
-                        form = ET.SubElement(field_elem, f"{{{self.NSMAP['lift']}}}form", {'lang': lang})
-                        ET.SubElement(form, f"{{{self.NSMAP['lift']}}}text").text = str(text)
-                
-                # Add other sense-level custom fields
-                if hasattr(sense, 'custom_fields') and sense.custom_fields:
-                    for field_type, field_content in sense.custom_fields.items():
-                        # Skip specific field types that are handled separately
-                        if field_type in ['exemplar', 'scientific-name', 'literal-meaning']:
-                            continue
-                        field_elem = ET.SubElement(sense_elem, f"{{{self.NSMAP['lift']}}}field", { 'type': field_type})
-                        for lang, text in field_content.items():
-                            form = ET.SubElement(field_elem, f"{{{self.NSMAP['lift']}}}form", { 'lang': lang})
-                            ET.SubElement(form, f"{{{self.NSMAP['lift']}}}text").text = str(text)
-                if hasattr(sense, 'examples') and sense.examples:
-                    for example in sense.examples:
-                        # Handle both dict and Example object formats
-                        if isinstance(example, dict):
-                            # Legacy format - simple example
-                            example_elem = ET.SubElement(sense_elem, f"{{{self.NSMAP['lift']}}}example")
-                            if 'en' in example:
-                                form = ET.SubElement(example_elem, f"{{{self.NSMAP['lift']}}}form", {'lang': 'en'})
-                                ET.SubElement(form, f"{{{self.NSMAP['lift']}}}text").text = str(example['en'])
-                        elif hasattr(example, 'form') and example.form:
-                            # New Example object format with enhancements
-                            example_attrib = {}
-                            if hasattr(example, 'id') and example.id:
-                                example_attrib['id'] = example.id
-                            if hasattr(example, 'source') and example.source:
-                                example_attrib['source'] = example.source
-                            
-                            example_elem = ET.SubElement(sense_elem, f"{{{self.NSMAP['lift']}}}example", example_attrib)
-                            
-                            # Add form
-                            for lang, text in example.form.items():
-                                form = ET.SubElement(example_elem, f"{{{self.NSMAP['lift']}}}form", {'lang': lang})
-                                ET.SubElement(form, f"{{{self.NSMAP['lift']}}}text").text = str(text)
-                            
-                            # Add translations
-                            if hasattr(example, 'translations') and example.translations:
-                                for lang, text in example.translations.items():
-                                    translation = ET.SubElement(example_elem, f"{{{self.NSMAP['lift']}}}translation")
-                                    form = ET.SubElement(translation, f"{{{self.NSMAP['lift']}}}form", {'lang': lang})
-                                    ET.SubElement(form, f"{{{self.NSMAP['lift']}}}text").text = str(text)
-                            
-                            # Add note if present
-                            if hasattr(example, 'note') and example.note:
-                                note_field = ET.SubElement(example_elem, f"{{{self.NSMAP['lift']}}}field", {'type': 'note'})
-                                for lang, text in example.note.items():
-                                    form = ET.SubElement(note_field, f"{{{self.NSMAP['lift']}}}form", {'lang': lang})
-                                    ET.SubElement(form, f"{{{self.NSMAP['lift']}}}text").text = str(text)
-                            
-                            # Add custom fields if present
-                            if hasattr(example, 'custom_fields') and example.custom_fields:
-                                for field_type, field_content in example.custom_fields.items():
-                                    field_elem = ET.SubElement(example_elem, f"{{{self.NSMAP['lift']}}}field", {'type': field_type})
-                                    for lang, text in field_content.items():
-                                        form = ET.SubElement(field_elem, f"{{{self.NSMAP['lift']}}}form", {'lang': lang})
-                                        ET.SubElement(form, f"{{{self.NSMAP['lift']}}}text").text = str(text)
-                
-                # Add sense-level annotations
-                if hasattr(sense, 'annotations') and sense.annotations:
-                    for annotation in sense.annotations:
-                        annotation_attrib = {
-                            'name': annotation.get('name', '')
-                        }
-                        if 'value' in annotation and annotation['value']:
-                            annotation_attrib['value'] = annotation['value']
-                        if 'who' in annotation and annotation['who']:
-                            annotation_attrib['who'] = annotation['who']
-                        if 'when' in annotation and annotation['when']:
-                            annotation_attrib['when'] = annotation['when']
-                        
-                        annotation_elem = ET.SubElement(sense_elem, f"{{{self.NSMAP['lift']}}}annotation", annotation_attrib)
-                        
-                        # Add content if present
-                        if 'content' in annotation and annotation['content']:
-                            for lang, text in annotation['content'].items():
-                                form = ET.SubElement(annotation_elem, f"{{{self.NSMAP['lift']}}}form", {'lang': lang})
-                                ET.SubElement(form, f"{{{self.NSMAP['lift']}}}text").text = str(text)
-                
-                # Add sense-level relations
-                if hasattr(sense, 'relations') and sense.relations:
-                    for relation in sense.relations:
-                        rel_attrib = {'type': relation.get('type', ''), 'ref': relation.get('ref', '')}
-                        if 'order' in relation and relation['order'] is not None:
-                            rel_attrib['order'] = str(relation['order'])
-                        
-                        relation_elem = ET.SubElement(sense_elem, f"{{{self.NSMAP['lift']}}}relation", rel_attrib)
-                        
-                        # Add traits if present
-                        if 'traits' in relation and relation['traits']:
-                            for trait_name, trait_value in relation['traits'].items():
-                                ET.SubElement(relation_elem, f"{{{self.NSMAP['lift']}}}trait", {
-                                    'name': trait_name, 
-                                    'value': trait_value
-                                })
+                self._serialize_sense_elem(sense_elem, sense)
 
-                # Add illustrations
-                if hasattr(sense, 'illustrations') and sense.illustrations:
-                    for illustration in sense.illustrations:
-                        ill_elem = ET.SubElement(sense_elem, f"{{{self.NSMAP['lift']}}}illustration", {'href': illustration['href']})
-                        
-                        # Add label if present
-                        if 'label' in illustration and illustration['label']:
-                            label_elem = ET.SubElement(ill_elem, f"{{{self.NSMAP['lift']}}}label")
-                            for lang, text in illustration['label'].items():
-                                form = ET.SubElement(label_elem, f"{{{self.NSMAP['lift']}}}form", {'lang': lang})
-                                ET.SubElement(form, f"{{{self.NSMAP['lift']}}}text").text = str(text)
-            
-            # Variants
+
             for variant in entry.variants:
                 variant_elem = ET.SubElement(entry_elem, f"{{{self.NSMAP['lift']}}}variant")
             
@@ -1212,7 +1299,6 @@ class LIFTRangesParser:
             'reverse_labels': self._parse_multitext(elem, "./lift:field[@type='reverse-label']"),
             'reverse_abbrevs': self._parse_multitext(elem, "./lift:field[@type='reverse-abbrev']")
         }
-
 
 
     def _parse_multitext(self, parent: ET.Element, xpath: str) -> Dict[str, str]:

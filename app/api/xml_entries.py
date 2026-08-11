@@ -19,6 +19,7 @@ from app.services.xml_entry_service import (
     DatabaseConnectionError,
     DuplicateEntryError
 )
+from app.utils.exceptions import VersionConflictError
 
 # Create blueprint
 xml_entries_bp = Blueprint('xml_entries', __name__, url_prefix='/api/xml')
@@ -143,14 +144,58 @@ def update_entry(entry_id: str) -> Any:
         
         # Get XML entry service
         xml_service = get_xml_entry_service()
-        
+
+        # Optimistic concurrency: the client sends the dateModified it loaded
+        # the entry with (X-Base-Date-Modified). If another write happened
+        # since, reject the save instead of silently clobbering it.
+        base_modified = request.headers.get('X-Base-Date-Modified')
+        if base_modified:
+            try:
+                from app.services.dictionary_service import DictionaryService
+                current_entry = current_app.injector.get(DictionaryService).get_entry(entry_id)
+                current_modified = getattr(current_entry, 'date_modified', None)
+                if current_modified and str(current_modified) != base_modified:
+                    logger.warning(
+                        f'[XML API] Version conflict on {entry_id}: '
+                        f'client base {base_modified} vs current {current_modified}'
+                    )
+                    return jsonify({
+                        'error': 'version_conflict',
+                        'message': 'This entry was modified elsewhere since you opened it.',
+                        'current': str(current_modified),
+                        'base': base_modified,
+                    }), 409
+            except EntryNotFoundError:
+                # Creating a new entry — no conflict to check.
+                pass
+            except Exception as ce:
+                # Fail closed: if we cannot read the current version, do NOT
+                # write blindly (that would silently clobber a concurrent edit).
+                logger.error(f'[XML API] Version check failed for {entry_id}: {ce}')
+                return jsonify({
+                    'error': 'version_check_failed',
+                    'message': 'Could not verify the entry version before saving. '
+                               'Please reload and try again.',
+                }), 500
+
         # Try to update entry, if not found then create it
         try:
-            result = xml_service.update_entry(entry_id, xml_string)
+            result = xml_service.update_entry(
+                entry_id, xml_string, base_modified=base_modified
+            )
         except EntryNotFoundError:
             # If entry doesn't exist, create it instead
             logger.info('[XML API] Entry %s not found, creating new entry', entry_id)
             result = xml_service.create_entry(xml_string)
+        except VersionConflictError as vce:
+            # The conditional replace matched nothing — another write landed
+            # since the client loaded the entry.
+            return jsonify({
+                'error': 'version_conflict',
+                'message': str(vce),
+                'current': vce.current,
+                'base': vce.base,
+            }), 409
         
         logger.info('[XML API] Entry saved: %s', result['id'])
 
