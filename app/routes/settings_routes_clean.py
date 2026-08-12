@@ -318,11 +318,19 @@ def drop_database():
             return jsonify({'success': False, 'error': 'Dictionary service not available'}), 500
         
         if action == 'drop_ranges':
-            # Drop database and install recommended ranges
+            # Drop the database and seed the recommended ranges back in —
+            # drop_database_content() recreates it empty, so install_recommended_ranges()
+            # can seed the minimal ranges on the clean slate without conflict.
             dict_svc.drop_database_content()
-            # Install ranges - this would need to be implemented
-            # For now, just drop
-            logger.info('Database dropped and ranges installation requested')
+            try:
+                dict_svc.install_recommended_ranges()
+            except Exception as e:
+                logger.error('Failed to install recommended ranges after drop: %s', e, exc_info=True)
+                return jsonify({
+                    'success': False,
+                    'error': f'Database dropped but ranges installation failed: {e}'
+                }), 500
+            logger.info('Database dropped and recommended ranges installed')
         else:
             # Just drop the database content
             dict_svc.drop_database_content()

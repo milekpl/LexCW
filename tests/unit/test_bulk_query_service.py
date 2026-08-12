@@ -3,7 +3,7 @@ Unit tests for BulkQueryService condition parsing and XQuery building.
 """
 
 import pytest
-from app.services.bulk_query_service import BulkQueryService, Condition
+from app.services.bulk_service import BulkQueryService, Condition
 
 
 class TestConditionParsing:

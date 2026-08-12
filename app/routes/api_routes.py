@@ -141,30 +141,3 @@ def get_range_by_type(range_type: str):
     except Exception as e:
         logger.error(f"Error getting range {range_type}: {e}", exc_info=True)
         return jsonify({'error': str(e)}), 500
-
-
-@api_bp.route('/ranges/language-codes')
-def get_language_codes():
-    """Get available language codes for variant forms."""
-    try:
-        dict_service = current_app.injector.get(DictionaryService)
-        
-        # Extract language codes from the LIFT data
-        # This could be enhanced to get actual codes from the data
-        # For now, provide a basic set of common language codes
-        language_codes = [
-            {'code': 'en', 'name': 'English'},
-            {'code': 'seh-fonipa', 'name': 'Sena (IPA)'},
-            {'code': 'pl', 'name': 'Polish'},
-            {'code': 'fr', 'name': 'French'},
-            {'code': 'es', 'name': 'Spanish'},
-        ]
-        
-        return jsonify({
-            'language_codes': language_codes,
-            'count': len(language_codes)
-        })
-        
-    except Exception as e:
-        logger.error(f"Error getting language codes: {e}", exc_info=True)
-        return jsonify({'error': str(e)}), 500

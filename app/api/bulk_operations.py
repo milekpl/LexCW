@@ -16,11 +16,11 @@ from typing import Any
 
 # Lazy imports to avoid circular dependency issues
 def get_bulk_operations_service():
-    from app.services.bulk_operations_service import BulkOperationsService
+    from app.services.bulk_service import BulkOperationsService
     return current_app.injector.get(BulkOperationsService)
 
 def get_bulk_query_service():
-    from app.services.bulk_query_service import BulkQueryService
+    from app.services.bulk_service import BulkQueryService
     return current_app.injector.get(BulkQueryService)
 
 def get_bulk_action_service():
@@ -28,7 +28,7 @@ def get_bulk_action_service():
     return current_app.injector.get(BulkActionService)
 
 def get_rollback_service():
-    from app.services.bulk_rollback_service import BulkRollbackService
+    from app.services.bulk_service import BulkRollbackService
     from app.services.dictionary_service import DictionaryService
     ds = current_app.injector.get(DictionaryService)
     return BulkRollbackService(dictionary_service=ds)
@@ -48,7 +48,7 @@ def _snapshot_for_bulk_op(entry_ids: list[str]) -> str | None:
         if injector is None:
             return None
         from app.services.dictionary_service import DictionaryService
-        from app.services.bulk_rollback_service import BulkRollbackService
+        from app.services.bulk_service import BulkRollbackService
         ds = injector.get(DictionaryService)
         rs = BulkRollbackService(dictionary_service=ds)
         op_id = rs.generate_op_id()

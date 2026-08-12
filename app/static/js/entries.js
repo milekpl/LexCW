@@ -97,16 +97,6 @@ function initializeMergeSplitButtons() {
     // });
 }
 
-// Placeholder functions for modal opening
-function openMergeEntrySearch(entryId) {
-    console.log(`Opening Merge Entry Search for entry: ${entryId}`);
-    // Here you would typically show the modal and populate data
-    // For now, just logging
-    const mergeEntrySearchModal = new bootstrap.Modal(document.getElementById('mergeEntrySearchModal'));
-    mergeEntrySearchModal.show();
-    document.getElementById('sourceEntryName').textContent = entryId; // Example
-}
-
 function openSplitEntryDialog(entryId) {
     console.log(`Opening Split Entry Dialog for entry: ${entryId}`);
     const splitEntryModalEl = document.getElementById('splitEntryModal');

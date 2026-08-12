@@ -1216,7 +1216,7 @@ def execute_pipeline(pipeline_id: int) -> tuple[Dict[str, Any], int]:
                     entry_ids = [row[0] for row in cur.fetchall()]
         elif conditions:
             # Query matching entries using bulk query service
-            from app.services.bulk_query_service import BulkQueryService
+            from app.services.bulk_service import BulkQueryService
             bqs = BulkQueryService(dictionary_service)
 
             try:

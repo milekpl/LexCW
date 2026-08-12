@@ -3,7 +3,7 @@ Unit tests for BulkOperationsService.
 """
 import pytest
 from unittest.mock import Mock, MagicMock
-from app.services.bulk_operations_service import BulkOperationsService
+from app.services.bulk_service import BulkOperationsService
 
 
 class TestBulkOperationsService:

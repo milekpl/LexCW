@@ -6,7 +6,7 @@ import pytest
 from unittest.mock import Mock, patch
 from datetime import datetime, timezone
 
-from app.services.bulk_rollback_service import BulkRollbackService
+from app.services.bulk_service import BulkRollbackService
 
 
 class TestBulkRollbackService:
