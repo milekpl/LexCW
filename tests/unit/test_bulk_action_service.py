@@ -3,7 +3,9 @@ Unit tests for BulkActionService action parsing and validation.
 """
 
 import pytest
-from app.services.bulk_action_service import BulkAction, BulkActionService, ActionType
+from unittest.mock import MagicMock
+
+from app.services.bulk_service import BulkAction, BulkActionService, ActionType
 
 
 class TestBulkActionParsing:
@@ -283,4 +285,80 @@ class TestActionRangesValidation:
         service = BulkActionService(None)
         is_valid, errors = service.validate_action(action)
 
+        assert is_valid is True
+
+
+class TestCanonicalLiftRangeValidation:
+    """_validate_ranges against the dictionary's real LIFT ranges (range_id)."""
+
+    def _service_with_ranges(self, lift_ranges):
+        dictionary = MagicMock()
+        dictionary.get_lift_ranges.return_value = lift_ranges
+        return BulkActionService(dictionary)
+
+    def test_value_not_in_canonical_range_is_rejected(self):
+        lift_ranges = {
+            "part-of-speech": {
+                "values": [
+                    {"value": "noun", "id": "noun"},
+                    {"value": "verb", "id": "verb"},
+                    {"abbrev": "adj", "value": "adjective"},
+                ]
+            }
+        }
+        service = self._service_with_ranges(lift_ranges)
+        action = BulkAction(
+            action="set",
+            field="grammatical_info.trait",
+            value="adverb",  # not a member
+            ranges={"range_id": "part-of-speech"},
+        )
+        is_valid, errors = service.validate_action(action)
+        assert is_valid is False
+        assert any("not in allowed values for range 'part-of-speech'" in e for e in errors)
+
+    def test_value_in_canonical_range_passes(self):
+        lift_ranges = {
+            "part-of-speech": {"values": [{"value": "noun"}, {"value": "verb"}]}
+        }
+        service = self._service_with_ranges(lift_ranges)
+        action = BulkAction(
+            action="set",
+            field="grammatical_info.trait",
+            value="verb",
+            ranges={"range_id": "part-of-speech"},
+        )
+        is_valid, errors = service.validate_action(action)
+        assert is_valid is True
+        assert errors == []
+
+    def test_abbrev_or_id_members_are_accepted(self):
+        lift_ranges = {
+            "grammatical-info": {"values": [{"abbrev": "n", "id": "noun"}, {"abbrev": "v", "id": "verb"}]}
+        }
+        service = self._service_with_ranges(lift_ranges)
+        for value in ("noun", "n", "verb"):
+            action = BulkAction(
+                action="set", field="grammatical_info.trait", value=value,
+                ranges={"range_id": "grammatical-info"},
+            )
+            is_valid, errors = service.validate_action(action)
+            assert is_valid is True, f"{value}: {errors}"
+
+    def test_unknown_range_id_skips_canonical_check(self):
+        service = self._service_with_ranges({"part-of-speech": {"values": [{"value": "noun"}]}})
+        action = BulkAction(
+            action="set", field="grammatical_info.trait", value="whatever",
+            ranges={"range_id": "nonexistent-range"},
+        )
+        is_valid, errors = service.validate_action(action)
+        assert is_valid is True  # unknown range → don't block
+
+    def test_missing_dictionary_skips_canonical_check(self):
+        service = BulkActionService(None)
+        action = BulkAction(
+            action="set", field="grammatical_info.trait", value="whatever",
+            ranges={"range_id": "part-of-speech"},
+        )
+        is_valid, errors = service.validate_action(action)
         assert is_valid is True

@@ -24,7 +24,7 @@ def get_bulk_query_service():
     return current_app.injector.get(BulkQueryService)
 
 def get_bulk_action_service():
-    from app.services.bulk_action_service import BulkActionService
+    from app.services.bulk_service import BulkActionService
     return current_app.injector.get(BulkActionService)
 
 def get_rollback_service():
@@ -285,6 +285,20 @@ def bulk_execute() -> Any:
         action = data.get('action', {})
         preview = data.get('preview', False)
 
+        # Convert to a BulkAction object (execute_action requires one — passing the
+        # raw dict silently errored on every entry) and validate it, including any
+        # canonical LIFT-range constraints.
+        from app.services.bulk_service import BulkAction
+
+        try:
+            action = BulkAction.from_dict(action)
+        except Exception as e:
+            return jsonify({'error': f'Invalid action: {e}'}), 400
+
+        is_valid, validation_errors = action_service.validate_action(action)
+        if not is_valid:
+            return jsonify({'error': '; '.join(validation_errors)}), 400
+
         # Get matching entry IDs if condition provided
         if condition and not entry_ids:
             query_result = query_service.query_entries(condition, limit=10000, offset=0)
@@ -363,6 +377,22 @@ def bulk_pipeline() -> Any:
         if not steps:
             return jsonify({'error': 'No pipeline steps provided'}), 400
 
+        # Convert every step to a BulkAction (execute_action requires objects, not
+        # raw dicts) and validate each — including canonical LIFT-range constraints.
+        from app.services.bulk_service import BulkAction
+
+        try:
+            action_steps = [BulkAction.from_dict(step) for step in steps]
+        except Exception as e:
+            return jsonify({'error': f'Invalid pipeline step: {e}'}), 400
+
+        for i, step_action in enumerate(action_steps):
+            is_valid, validation_errors = action_service.validate_action(step_action)
+            if not is_valid:
+                return jsonify({
+                    'error': f"Step {i + 1} invalid: {'; '.join(validation_errors)}"
+                }), 400
+
         # Get matching entry IDs if condition provided
         if condition and not entry_ids:
             query_result = query_service.query_entries(condition, limit=10000, offset=0)
@@ -376,15 +406,15 @@ def bulk_pipeline() -> Any:
 
         # Execute each step in pipeline
         steps_results = []
-        for i, step in enumerate(steps):
+        for i, step_action in enumerate(action_steps):
             step_results = []
             for entry_id in entry_ids:
-                result = action_service.execute_action(entry_id, step, dry_run=preview)
+                result = action_service.execute_action(entry_id, step_action, dry_run=preview)
                 step_results.append(result)
 
             steps_results.append({
                 'step': i + 1,
-                'action': step.get('type'),
+                'action': step_action.action,
                 'results': step_results
             })
 

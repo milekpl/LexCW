@@ -175,3 +175,95 @@ def app():
     application = Flask(__name__)
     application.config['TESTING'] = True
     return application
+
+
+class TestBulkExecuteConversionAndValidation:
+    """/bulk/execute and /bulk/pipeline must convert dicts to BulkAction and validate.
+
+    Regression: raw dicts were passed to execute_action (which requires a BulkAction
+    object), so every real action errored with "'dict' object has no attribute
+    'action'". Conversion + validate_action now gate the request.
+    """
+
+    def _app(self):
+        from app.api.bulk_operations import bulk_bp
+
+        app = Flask(__name__)
+        app.register_blueprint(bulk_bp)
+        return app
+
+    def test_execute_rejects_invalid_range_value(self):
+        from app.services.bulk_service import BulkAction  # noqa: F401
+
+        mock_svc = Mock()
+        mock_svc.validate_action.return_value = (
+            False, ["Value 'adverb' not in allowed values for range 'part-of-speech'"]
+        )
+
+        with patch('app.api.bulk_operations.get_bulk_action_service', return_value=mock_svc), \
+             patch('app.api.bulk_operations.get_bulk_query_service', return_value=Mock()), \
+             patch('app.api.bulk_operations._snapshot_for_bulk_op', return_value='op-1'):
+            with self._app().test_client() as client:
+                resp = client.post('/bulk/execute', json={
+                    'entry_ids': ['entry-1'],
+                    'action': {
+                        'type': 'set', 'field': 'grammatical_info.trait', 'value': 'adverb',
+                        'ranges': {'range_id': 'part-of-speech'},
+                    },
+                })
+                assert resp.status_code == 400
+                assert 'not in allowed values for range' in resp.get_json()['error']
+                mock_svc.execute_action.assert_not_called()
+
+    def test_execute_converts_dict_to_bulkaction(self):
+        from app.services.bulk_service import BulkAction
+
+        mock_svc = Mock()
+        mock_svc.validate_action.return_value = (True, [])
+        mock_svc.execute_action.return_value = {'status': 'success', 'entry_id': 'entry-1'}
+
+        with patch('app.api.bulk_operations.get_bulk_action_service', return_value=mock_svc), \
+             patch('app.api.bulk_operations.get_bulk_query_service', return_value=Mock()), \
+             patch('app.api.bulk_operations._snapshot_for_bulk_op', return_value='op-1'):
+            with self._app().test_client() as client:
+                resp = client.post('/bulk/execute', json={
+                    'entry_ids': ['entry-1'],
+                    'action': {'type': 'set', 'field': 'grammatical_info.trait', 'value': 'verb'},
+                })
+                assert resp.status_code == 200
+                call = mock_svc.execute_action.call_args
+                assert call is not None
+                action = call.args[1]
+                assert isinstance(action, BulkAction)  # converted, not the raw dict
+                assert action.value == 'verb'
+
+    def test_pipeline_validates_and_converts_steps(self):
+        from app.services.bulk_service import BulkAction
+
+        mock_svc = Mock()
+        mock_svc.validate_action.return_value = (
+            False, ["Value 'adverb' not in allowed values for range 'part-of-speech'"]
+        )
+
+        with patch('app.api.bulk_operations.get_bulk_action_service', return_value=mock_svc), \
+             patch('app.api.bulk_operations.get_bulk_query_service', return_value=Mock()), \
+             patch('app.api.bulk_operations._snapshot_for_bulk_op', return_value='op-1'):
+            with self._app().test_client() as client:
+                resp = client.post('/bulk/pipeline', json={
+                    'entry_ids': ['entry-1'],
+                    'steps': [{'type': 'set', 'field': 'grammatical_info.trait', 'value': 'adverb',
+                               'ranges': {'range_id': 'part-of-speech'}}],
+                })
+                assert resp.status_code == 400
+                assert 'Step 1 invalid' in resp.get_json()['error']
+                mock_svc.execute_action.assert_not_called()
+
+                mock_svc.validate_action.return_value = (True, [])
+                mock_svc.execute_action.return_value = {'status': 'success', 'entry_id': 'entry-1'}
+                resp2 = client.post('/bulk/pipeline', json={
+                    'entry_ids': ['entry-1'],
+                    'steps': [{'type': 'set', 'field': 'grammatical_info.trait', 'value': 'verb'}],
+                })
+                assert resp2.status_code == 200
+                call = mock_svc.execute_action.call_args
+                assert isinstance(call.args[1], BulkAction)

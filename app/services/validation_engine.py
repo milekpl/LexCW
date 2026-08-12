@@ -1016,15 +1016,111 @@ class ValidationEngine:
         
         return errors
     
-    def _validate_unique_languages_in_multitext(self, rule_id: str, rule_config: Dict[str, Any], 
+    def _validate_unique_languages_in_multitext(self, rule_id: str, rule_config: Dict[str, Any],
                                               data: Dict[str, Any]) -> List[ValidationError]:
-        """R8.2.2: Validate unique language codes in multitext content."""
+        """R8.2.2: Validate unique language codes in multitext content.
+
+        Walks the entry's multitext containers (lexical units, glosses, definitions,
+        forms, translations, notes, variant/etymology forms, …) and flags duplicate
+        language codes. Duplicates can only appear in list-shaped containers
+        (e.g. ``[{"lang": "en", "text": …}, …]`` from imports); dict-shaped multitext
+        is inherently unique and passes.
+
+        ``rule_config['validation']['field']`` optionally restricts the check to a
+        single field name (matched against the JSON path).
+        """
         errors: List[ValidationError] = []
-        
-        # This would be implemented based on specific multitext structure in your data
-        # Placeholder for now
-        
+        field_filter = None
+        validation_cfg = rule_config.get('validation')
+        if isinstance(validation_cfg, dict):
+            field_filter = validation_cfg.get('field')
+
+        for path, container in self._iter_multitext_containers(data):
+            if field_filter and field_filter not in path:
+                continue
+            seen: set[str] = set()
+            if isinstance(container, list):
+                for i, item in enumerate(container):
+                    if not isinstance(item, dict):
+                        continue
+                    lang = item.get('lang') or item.get('language_code')
+                    if not lang:
+                        continue
+                    if lang in seen:
+                        errors.append(ValidationError(
+                            rule_id=rule_id,
+                            rule_name=rule_config['name'],
+                            message=rule_config['error_message'],
+                            path=f"{path}[{i}].lang",
+                            priority=ValidationPriority(rule_config['priority']),
+                            category=ValidationCategory(rule_config['category']),
+                            value=lang,
+                        ))
+                    seen.add(lang)
+            elif isinstance(container, dict):
+                # Dicts keyed by language cannot hold duplicates; nothing to flag.
+                seen.update(k for k in container if isinstance(k, str))
         return errors
+
+    def _iter_multitext_containers(self, data: Dict[str, Any]):
+        """Yield ``(json_path, container)`` for every multitext field in the entry.
+
+        Containers are either dicts (``{lang: text}``) or lists of
+        ``{lang, text, …}`` items.
+        """
+
+        def _walk_sense(path: str, sense: Dict[str, Any]):
+            for f in ('glosses', 'gloss', 'definitions', 'definition'):
+                v = sense.get(f)
+                if isinstance(v, (dict, list)):
+                    yield f"{path}.{f}", v
+            notes = sense.get('notes')
+            if isinstance(notes, dict):
+                for ntype, content in notes.items():
+                    if isinstance(content, (dict, list)):
+                        yield f"{path}.notes.{ntype}", content
+            examples = sense.get('examples')
+            if isinstance(examples, list):
+                for ei, ex in enumerate(examples):
+                    if not isinstance(ex, dict):
+                        continue
+                    for f in ('forms', 'form', 'translations', 'translation'):
+                        v = ex.get(f)
+                        if isinstance(v, (dict, list)):
+                            yield f"{path}.examples[{ei}].{f}", v
+            subsenses = sense.get('subsenses')
+            if isinstance(subsenses, list):
+                for si, sub in enumerate(subsenses):
+                    if isinstance(sub, dict):
+                        yield from _walk_sense(f"{path}.subsenses[{si}]", sub)
+
+        for f in ('lexical_unit', 'lexicalUnit', 'citation'):
+            v = data.get(f)
+            if isinstance(v, (dict, list)):
+                yield f"$.{f}", v
+        notes = data.get('notes')
+        if isinstance(notes, dict):
+            for ntype, content in notes.items():
+                if isinstance(content, (dict, list)):
+                    yield f"$.notes.{ntype}", content
+
+        senses = data.get('senses')
+        if isinstance(senses, list):
+            for si, sense in enumerate(senses):
+                if isinstance(sense, dict):
+                    yield from _walk_sense(f"$.senses[{si}]", sense)
+
+        for collection, fields in (('variants', ('forms', 'notes')),
+                                   ('etymologies', ('forms', 'glosses'))):
+            items = data.get(collection)
+            if isinstance(items, list):
+                for ii, item in enumerate(items):
+                    if not isinstance(item, dict):
+                        continue
+                    for f in fields:
+                        v = item.get(f)
+                        if isinstance(v, (dict, list)):
+                            yield f"$.{collection}[{ii}].{f}", v
     
     def _validate_language_codes(self, rule_id: str, rule_config: Dict[str, Any], 
                                 data: Dict[str, Any], matches: List[Any]) -> List[ValidationError]:

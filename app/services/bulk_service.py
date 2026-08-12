@@ -13,7 +13,7 @@ The legacy module names remain as thin re-export shims so existing imports
 """
 
 import logging
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Set
 from app.services.dictionary_service import DictionaryService
 from app.services.workset_service import WorksetService
 from app.services.operation_history_service import OperationHistoryService
@@ -758,20 +758,74 @@ class BulkActionService:
         return len(errors) == 0, errors
 
     def _validate_ranges(self, action: BulkAction) -> List[str]:
-        """Validate that action values are within allowed ranges."""
-        errors = []
+        """Validate that action values are within allowed ranges.
 
-        # This would check against LIFT ranges
-        # For now, just basic validation
-        if action.ranges.get('allowed_values'):
-            if action.value and action.value not in action.ranges['allowed_values']:
-                errors.append(f"Value '{action.value}' not in allowed values: {action.ranges['allowed_values']}")
+        When ``action.ranges['range_id']`` is given, the value is checked against
+        the dictionary's **actual LIFT range members** (the canonical source of
+        truth, e.g. the ``part-of-speech`` range). The explicit ``allowed_values`` /
+        ``allowed_types`` lists remain supported as a fallback for callers that
+        supply their own lists.
+        """
+        errors: List[str] = []
+        ranges = action.ranges or {}
 
-        if action.ranges.get('allowed_types'):
-            if action.relation_type and action.relation_type not in action.ranges['allowed_types']:
+        range_id = ranges.get('range_id')
+        if range_id:
+            member_values = self._canonical_range_values(range_id)
+            if member_values is not None:  # None = range unknown/unresolvable → skip
+                if action.value and action.value not in member_values:
+                    errors.append(
+                        f"Value '{action.value}' not in allowed values for range '{range_id}'"
+                    )
+                return errors
+
+        if ranges.get('allowed_values'):
+            if action.value and action.value not in ranges['allowed_values']:
+                errors.append(f"Value '{action.value}' not in allowed values: {ranges['allowed_values']}")
+
+        if ranges.get('allowed_types'):
+            if action.relation_type and action.relation_type not in ranges['allowed_types']:
                 errors.append(f"Relation type '{action.relation_type}' not in allowed types")
 
         return errors
+
+    def _canonical_range_values(self, range_id: str) -> Optional[Set[str]]:
+        """Resolve the member values of a LIFT range from the dictionary.
+
+        Returns a set of member values, or ``None`` when the range cannot be
+        resolved (dictionary unavailable, range unknown, or a lookup error) — the
+        caller then skips the canonical check rather than blocking bulk actions.
+        """
+        dictionary = getattr(self, 'dictionary', None)
+        if dictionary is None:
+            return None
+        try:
+            getter = getattr(dictionary, 'get_lift_ranges', None)
+            if not callable(getter):
+                return None
+            lift_ranges = getter() or {}
+        except Exception as e:
+            logger.debug("Could not load LIFT ranges for validation: %s", e)
+            return None
+
+        range_data = lift_ranges.get(range_id) if isinstance(lift_ranges, dict) else None
+        if range_data is None:
+            return None
+        if not isinstance(range_data, dict):
+            # Some parsers may return a bare list of elements for the range.
+            elements = range_data if isinstance(range_data, list) else []
+        else:
+            elements = range_data.get('values') or range_data.get('elements') or []
+
+        values: Set[str] = set()
+        for element in elements:
+            if not isinstance(element, dict):
+                continue
+            for key in ('value', 'id', 'abbrev'):
+                v = element.get(key)
+                if v:
+                    values.add(str(v))
+        return values or None
 
     def execute_action(
         self,

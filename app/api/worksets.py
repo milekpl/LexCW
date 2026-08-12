@@ -1246,7 +1246,7 @@ def execute_pipeline(pipeline_id: int) -> tuple[Dict[str, Any], int]:
             }, 200
 
         # Execute pipeline steps on each entry
-        from app.services.bulk_action_service import BulkActionService, BulkAction
+        from app.services.bulk_service import BulkActionService, BulkAction
         bas = BulkActionService(dictionary_service)
 
         results = {

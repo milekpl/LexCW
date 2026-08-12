@@ -26,8 +26,6 @@ class LIFTParser:
     def __init__(self, validate: bool = True):
         self.validate = validate
         self.logger = logging.getLogger(__name__)
-        # Cache for common parsing results if needed, but currently not used
-        self._cached_parsers = {}  # Placeholder for future caching
 
     # ==================== COMMON PARSING HELPERS ====================
     
