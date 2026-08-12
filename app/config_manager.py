@@ -157,6 +157,20 @@ class ConfigManager:
             settings.embedding_device = new_values.pop('embedding_device') or 'cpu'
             logger.debug('Updated embedding_device to: %s', settings.embedding_device)
 
+        if 'tts' in new_values:
+            new_tts = new_values.pop('tts')
+            logger.info('Updating tts settings')
+            raw_json = getattr(settings, 'settings_json', None) or {}
+            if not isinstance(raw_json, dict):
+                raw_json = {}
+            raw_json['tts'] = new_tts
+            settings.settings_json = raw_json
+            try:
+                from sqlalchemy.orm.attributes import flag_modified
+                flag_modified(settings, 'settings_json')
+            except Exception as e:
+                logger.warning('flag_modified failed/not applicable for settings_json: %s', e)
+
         if 'backup_settings' in new_values:
             new_backup = new_values.pop('backup_settings')
             logger.info('Updating backup_settings with: %s (Type: %s)', new_backup, type(new_backup))

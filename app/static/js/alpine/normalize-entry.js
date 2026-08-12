@@ -214,17 +214,40 @@
    * Normalize pronunciations from server shape to Alpine array.
    * Server may send a dict {ws_id: value} or an array of objects.
    */
-  function normalizePronunciations(raw) {
+  function normalizePronunciations(raw, media) {
     if (!raw) return [];
+    media = Array.isArray(media) ? media : [];
     if (Array.isArray(raw)) return raw.map(normalizePronunciation);
-    // Dict shape: {ws_id: value_string}
+    // Dict shape: {ws_id: value_string}; server sends the entry's flat
+    // pronunciation_media list alongside. Correlate by order ONLY when the
+    // counts line up exactly — otherwise the media list is ambiguous (e.g. one
+    // pronunciation without audio shifts the indices), and attaching audio to
+    // the wrong pronunciation is worse than leaving it empty.
     if (typeof raw === 'object') {
-      return Object.entries(raw).map(function (entry, idx) {
+      var entries = Object.entries(raw);
+      // Correlate the entry-level flat media list with pronunciations:
+      //  - one pronunciation with several comma-delimited variants → ALL media
+      //    belong to it (audioPaths = every href);
+      //  - N pronunciations with N media → 1:1 by order;
+      //  - anything else (e.g. N pronunciations but fewer media) is ambiguous,
+      //    so attach nothing rather than guess wrong.
+      var audioByIndex = null;
+      if (entries.length === 1) {
+        audioByIndex = [media.map(function (m) { return m && m.href; }).filter(Boolean)];
+      } else if (entries.length > 0 && media.length === entries.length) {
+        audioByIndex = entries.map(function (_, idx) {
+          var m = media[idx];
+          return m && m.href ? [m.href] : [];
+        });
+      }
+      return entries.map(function (entry, idx) {
+        var audioPaths = audioByIndex ? (audioByIndex[idx] || []) : [];
         return {
           id: generateId(),
           value: safeString(entry[1]),
           type: safeString(entry[0] || 'seh-fonipa'),
-          audioPath: '',
+          audioPath: audioPaths[0] || '',
+          audioPaths: audioPaths,
           isDefault: idx === 0,
           cvPattern: [],
           tone: []
@@ -236,11 +259,27 @@
 
   function normalizePronunciation(raw) {
     if (!raw) raw = {};
+    // Media hrefs from per-item media list (array shape) or entry-level flat list,
+    // plus the legacy audio_path/audioPath field. Order preserved, de-duplicated.
+    var rawHrefs = [];
+    if (Array.isArray(raw.media)) {
+      rawHrefs = raw.media.map(function (m) { return m && m.href; });
+    } else if (Array.isArray(raw.pronunciation_media)) {
+      rawHrefs = raw.pronunciation_media.map(function (m) { return m && m.href; });
+    }
+    if (raw.audio_path || raw.audioPath) {
+      rawHrefs.unshift(raw.audio_path || raw.audioPath);
+    }
+    var audioPaths = [];
+    rawHrefs.forEach(function (h) {
+      if (h && audioPaths.indexOf(h) === -1) audioPaths.push(h);
+    });
     return {
       id: raw.id || generateId(),
       value: safeString(raw.value || ''),
       type: safeString(raw.type || 'seh-fonipa'),
-      audioPath: safeString(raw.audio_path || raw.audioPath || ''),
+      audioPath: audioPaths[0] || '',
+      audioPaths: audioPaths,
       isDefault: !!(raw.is_default || raw.isDefault),
       cvPattern: dictToForms(raw.cv_pattern || raw.cvPattern),
       tone: dictToForms(raw.tone)
@@ -379,7 +418,7 @@
 
       // Independent top-level sections
       // pronunciations may be a dict {ws_id: value} or an array of objects
-      pronunciations: normalizePronunciations(raw.pronunciations),
+      pronunciations: normalizePronunciations(raw.pronunciations, raw.pronunciation_media),
       etymologies: safeArray(raw.etymologies).map(normalizeEtymology),
       variants: safeArray(raw.variants).map(normalizeVariant),
       // Entry-level semantic relations ONLY. The model (entry.py) folds variant_relations

@@ -33,6 +33,17 @@ class PronunciationFormsManager {
         };
     }
 
+    /**
+     * Escape a string for safe interpolation into HTML.
+     */
+    escapeHtml(value) {
+        return String(value == null ? '' : value)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
     init() {
         // Stage 2.3: Alpine now owns pronunciation rendering (x-for, addItem/removeItem).
         // The legacy manager is neutered to audio-only.  Do NOT render HTML, do NOT
@@ -49,12 +60,12 @@ class PronunciationFormsManager {
         this.container.addEventListener('click', (e) => {
             if (e.target.closest('.generate-audio-btn')) {
                 var index = parseInt(e.target.closest('.generate-audio-btn').dataset.index);
-                this.generateAudio(index);
+                this.generateTTSAudio(index);
             }
             // Audio upload button
             if (e.target.closest('.upload-audio-btn')) {
                 var idx = parseInt(e.target.closest('.upload-audio-btn').dataset.index);
-                this.generateAudio(idx);  // same upload flow (opens file picker)
+                this.uploadAudio(idx);
             }
         });
     }
@@ -284,15 +295,133 @@ class PronunciationFormsManager {
         });
     }
     
-    generateAudio(index) {
+    /**
+     * Set the audio files on a pronunciation item.
+     *
+     * In the entry form Alpine owns the item state, so we write
+     * ``items[index].audioPath``/``audioPaths`` through the Alpine scope (which
+     * makes the ``x-text`` label reactive and persists the value on save). The
+     * legacy non-Alpine path falls back to writing the hidden input.
+     *
+     * @param {number} index - Pronunciation index.
+     * @param {string[]} hrefs - Audio filenames, in order (first = primary).
+     */
+    setAudioPaths(index, hrefs) {
+        var itemEl = this.container.querySelector('.pronunciation-item[data-index="' + index + '"]');
+        if (!itemEl) return;
+
+        hrefs = (hrefs || []).filter(Boolean);
+        var primary = hrefs[0] || '';
+
+        if (window.Alpine && typeof window.Alpine.$data === 'function') {
+            var alpineData = window.Alpine.$data(itemEl);
+            if (alpineData && alpineData.items && alpineData.items[index]) {
+                alpineData.items[index].audioPaths = hrefs;
+                alpineData.items[index].audioPath = primary;
+                return;
+            }
+        }
+
+        var audioInput = itemEl.querySelector('input[x-model="item.audioPath"]');
+        if (!audioInput) audioInput = itemEl.querySelector('input[name$=".audio_path"]');
+        if (audioInput) audioInput.value = primary;
+    }
+
+    /**
+     * Set a single audio file on a pronunciation item (upload replaces all).
+     */
+    setAudioPath(index, filename) {
+        this.setAudioPaths(index, filename ? [filename] : []);
+    }
+
+    /**
+     * Generate pronunciation audio via the configured TTS engine.
+     * Calls POST /api/pronunciation/generate with {word, ipa}. Comma-delimited
+     * IPA lists are expanded server-side; one audio file per variant is
+     * generated and all of them are attached to the item.
+     */
+    generateTTSAudio(index) {
+        var item = this.container.querySelector('.pronunciation-item[data-index="' + index + '"]');
+        if (!item) return;
+
+        var ipaInput = item.querySelector('input.ipa-input');
+        if (!ipaInput) ipaInput = item.querySelector('input[name$=".value"]'); // legacy fallback
+
+        var lexicalUnitInput = document.querySelector('.lexical-unit-text');
+        var word = lexicalUnitInput ? lexicalUnitInput.value.trim() : '';
+        if (!word && window.__entryData && window.__entryData.lexical_unit) {
+            var lu = window.__entryData.lexical_unit;
+            word = lu.en || Object.values(lu)[0] || '';
+        }
+        var ipa = ipaInput ? ipaInput.value.trim() : '';
+
+        if (!word && !ipa) {
+            alert('Please enter a headword or an IPA transcription first.');
+            return;
+        }
+
+        var generateBtn = item.querySelector('.generate-audio-btn');
+        var originalText = generateBtn.innerHTML;
+        generateBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
+        generateBtn.disabled = true;
+
+        fetch('/api/pronunciation/generate', {
+            method: 'POST',
+            headers: Object.assign({}, this.getHeaders(), { 'Content-Type': 'application/json' }),
+            body: JSON.stringify({ word: word, ipa: ipa })
+        })
+        .then(async function (r) {
+            var data = await r.json().catch(function () { return {}; });
+            if (!r.ok) {
+                throw new Error(data.message || 'Audio generation failed (HTTP ' + r.status + ')');
+            }
+            return data;
+        })
+        .then(function (data) {
+            var results = (data.results && data.results.length)
+                ? data.results
+                : (data.filename ? [{ ipa: ipa, filename: data.filename }] : []);
+            if (!results.length) {
+                throw new Error('API response did not include audio files.');
+            }
+
+            // Attach every generated variant (first = primary) to the item.
+            var hrefs = results.map(function (r) { return r.filename; });
+            this.setAudioPaths(index, hrefs);
+
+            // Preview each variant; label them when there is more than one.
+            var multi = results.length > 1;
+            var self = this;
+            results.forEach(function (r) {
+                self.addAudioPreview(item, r.filename, multi ? (r.ipa || '') : '');
+            });
+
+            this.showMessage(
+                multi ? 'Audio generated for ' + results.length + ' pronunciations' : 'Audio generated successfully!',
+                'success'
+            );
+            generateBtn.innerHTML = '<i class="fas fa-check"></i> Generated';
+            setTimeout(function () {
+                generateBtn.innerHTML = originalText;
+                generateBtn.disabled = false;
+            }, 2000);
+        }.bind(this))
+        .catch(function (error) {
+            var message = (error && error.message) ? error.message : String(error);
+            console.error('[Pronunciation] Audio generation failed: ' + message, error);
+            this.showMessage('Failed to generate audio: ' + message, 'error');
+            generateBtn.innerHTML = originalText;
+            generateBtn.disabled = false;
+        }.bind(this));
+    }
+
+    uploadAudio(index) {
         // Get the IPA value from the Alpine-managed input
         var item = this.container.querySelector('.pronunciation-item[data-index="' + index + '"]');
         if (!item) return;
         
         var ipaInput = item.querySelector('input.ipa-input');  // Alpine-rendered
         if (!ipaInput) ipaInput = item.querySelector('input[name$=".value"]'); // legacy fallback
-        var audioInput = item.querySelector('input[x-model="item.audioPath"]');
-        if (!audioInput) audioInput = item.querySelector('input[name$=".audio_path"]'); // legacy fallback
         var generateBtn = item.querySelector('.generate-audio-btn');
         
         if (!ipaInput || !ipaInput.value.trim()) {
@@ -347,8 +476,8 @@ class PronunciationFormsManager {
                 const result = await response.json();
                 
                 if (response.ok && result.success) {
-                    // Update the hidden input with the filename
-                    audioInput.value = result.filename;
+                    // Record the filename on the item (Alpine state or legacy input)
+                    this.setAudioPath(index, result.filename);
                     
                     // Add audio preview
                     this.addAudioPreview(item, result.filename);
@@ -368,8 +497,9 @@ class PronunciationFormsManager {
                     throw new Error(result.message || 'Upload failed');
                 }
             } catch (error) {
-                console.error('Audio upload error:', error);
-                this.showMessage('Failed to upload audio: ' + error.message, 'error');
+                var message = (error && error.message) ? error.message : String(error);
+                console.error('[Pronunciation] Audio upload failed: ' + message, error);
+                this.showMessage('Failed to upload audio: ' + message, 'error');
                 
                 // Restore button state immediately on error
                 generateBtn.innerHTML = originalText;
@@ -387,11 +517,20 @@ class PronunciationFormsManager {
         fileInput.click();
     }
     
-    addAudioPreview(item, filename) {
-        // Remove existing preview
-        const existingPreview = item.querySelector('.audio-preview');
-        if (existingPreview) {
-            existingPreview.remove();
+    /**
+     * Remove all audio preview blocks from a pronunciation item.
+     */
+    clearAudioPreviews(item) {
+        const existing = item.querySelectorAll('.audio-preview');
+        existing.forEach(function (preview) {
+            preview.remove();
+        });
+    }
+
+    addAudioPreview(item, filename, label) {
+        // Remove an existing single preview when replacing with exactly one file
+        if (!label) {
+            this.clearAudioPreviews(item);
         }
         
         // Determine the audio file extension for proper MIME type
@@ -409,13 +548,17 @@ class PronunciationFormsManager {
         // Create audio preview element
         const audioPreview = document.createElement('div');
         audioPreview.className = 'audio-preview mt-2';
+        const labelHtml = label
+            ? '<small class="text-muted d-block"><strong>' + this.escapeHtml(label) + '</strong></small>'
+            : '';
         audioPreview.innerHTML = `
             <div class="d-flex align-items-center">
                 <div class="flex-grow-1">
+                    ${labelHtml}
                     <small class="text-muted d-block">Audio file: ${filename}</small>
                     <audio controls class="w-100 mt-1" preload="metadata">
-                        <source src="/static/audio/${filename}" type="${mimeType}">
-                        <source src="/static/audio/${filename}">
+                        <source src="/audio/${filename}" type="${mimeType}">
+                        <source src="/audio/${filename}">
                         Your browser does not support the audio element.
                     </audio>
                 </div>
@@ -451,10 +594,24 @@ class PronunciationFormsManager {
                 console.warn('Failed to delete audio file:', e);
             }
 
-            // Clear the audio input value (Alpine-managed, fall back to legacy)
-            var audioInput = item.querySelector('input[x-model="item.audioPath"]');
-            if (!audioInput) audioInput = item.querySelector('input[name$=".audio_path"]');
-            if (audioInput) audioInput.value = '';
+            // Drop this file from the Alpine state (or legacy input), keeping the rest.
+            var itemEl = item;
+            var removed = false;
+            if (window.Alpine && typeof window.Alpine.$data === 'function') {
+                var ad = window.Alpine.$data(itemEl);
+                var idx = parseInt(itemEl.dataset.index, 10);
+                if (ad && ad.items && !isNaN(idx) && ad.items[idx]) {
+                    ad.items[idx].audioPaths = (ad.items[idx].audioPaths || [])
+                        .filter(function (h) { return h !== filename; });
+                    ad.items[idx].audioPath = ad.items[idx].audioPaths[0] || '';
+                    removed = true;
+                }
+            }
+            if (!removed) {
+                var audioInput = item.querySelector('input[x-model="item.audioPath"]');
+                if (!audioInput) audioInput = item.querySelector('input[name$=".audio_path"]');
+                if (audioInput) audioInput.value = '';
+            }
             
             // Remove the preview
             audioPreview.remove();
@@ -601,23 +758,61 @@ class PronunciationFormsManager {
     }
     
     showMessage(message, type = 'info') {
-        // Create a toast-like message
+        // Create a toast-like message. Errors persist until dismissed (so the
+        // user can read and copy the text) and are also logged to the console;
+        // info/success toasts auto-dismiss.
         const messageDiv = document.createElement('div');
         messageDiv.className = `alert alert-${type === 'error' ? 'danger' : type} alert-dismissible fade show position-fixed`;
-        messageDiv.style.cssText = 'top: 20px; right: 20px; z-index: 1050; min-width: 300px;';
+        messageDiv.style.cssText =
+            'top: 20px; right: 20px; z-index: 1050; min-width: 340px; max-width: 520px;' +
+            ' user-select: text; white-space: pre-wrap; word-break: break-word;';
+        messageDiv.setAttribute('role', type === 'error' ? 'alert' : 'status');
+
+        const isError = type === 'error';
+        const copyBtn = isError
+            ? '<button type="button" class="btn btn-sm btn-outline-secondary ms-2" title="Copy error message" style="flex-shrink:0">Copy</button>'
+            : '';
         messageDiv.innerHTML = `
-            ${message}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            <div class="d-flex align-items-start justify-content-between gap-2">
+                <span class="flex-grow-1">${this.escapeHtml(message)}</span>
+                ${copyBtn}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" style="flex-shrink:0"></button>
+            </div>
         `;
-        
-        document.body.appendChild(messageDiv);
-        
-        // Auto-remove after 5 seconds
-        setTimeout(() => {
-            if (messageDiv.parentNode) {
-                messageDiv.remove();
+
+        if (isError) {
+            const copy = messageDiv.querySelector('button[title="Copy error message"]');
+            if (copy) {
+                copy.addEventListener('click', () => {
+                    const textEl = messageDiv.querySelector('span');
+                    const text = textEl ? textEl.textContent : '';
+                    if (navigator.clipboard && navigator.clipboard.writeText) {
+                        navigator.clipboard.writeText(text).then(() => {
+                            copy.textContent = 'Copied!';
+                            setTimeout(() => { copy.textContent = 'Copy'; }, 1500);
+                        }).catch(() => { /* clipboard may be blocked; fall through */ });
+                    } else {
+                        // Fallback: select the message text for manual copy
+                        const range = document.createRange();
+                        range.selectNodeContents(textEl);
+                        const sel = window.getSelection();
+                        sel.removeAllRanges();
+                        sel.addRange(range);
+                    }
+                });
             }
-        }, 5000);
+        }
+
+        document.body.appendChild(messageDiv);
+
+        if (!isError) {
+            // Auto-remove info/success after 5 seconds; errors stay until dismissed.
+            setTimeout(() => {
+                if (messageDiv.parentNode) {
+                    messageDiv.remove();
+                }
+            }, 5000);
+        }
     }
 }
 

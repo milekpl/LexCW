@@ -112,6 +112,38 @@ def process_and_split(input_string: str, split_string: str = ",") -> List[str]:
     return sorted(variants)
 
 
+def expand_pronunciations(ipa: str) -> List[str]:
+    """Expand a comma-delimited IPA string into individual pronunciations.
+
+    Dictionaries commonly store pronunciation variants as comma-delimited lists
+    (e.g. ``"triː, ˈtɹiː"``). This splits the list and expands parenthesised
+    optional segments per part, preserving input order and de-duplicating, so
+    each variant can be synthesized (or compared) on its own.
+
+    Examples::
+
+        >>> expand_pronunciations("triː, ˈtɹiː")
+        ["triː", "ˈtɹiː"]
+
+        >>> expand_pronunciations("ab(c), ab")
+        ["ab", "abc"]
+
+    Args:
+        ipa: Comma-delimited IPA string (may be empty).
+
+    Returns:
+        Ordered list of unique expanded pronunciations.
+    """
+    variants: List[str] = []
+    seen: Set[str] = set()
+    for part in (ipa or "").split(","):
+        for variant in process_parentheses(part.strip()):
+            if variant and variant not in seen:
+                seen.add(variant)
+                variants.append(variant)
+    return variants
+
+
 # ---------------------------------------------------------------------------
 # IPA validation
 # ---------------------------------------------------------------------------

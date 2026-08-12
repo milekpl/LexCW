@@ -268,7 +268,12 @@
           if (t.lang && t.text) out.tone[t.lang] = t.text;
         });
       }
-      if (p.audioPath) out.audio_path = p.audioPath;
+      if (p.audioPath || (p.audioPaths && p.audioPaths.length)) {
+        var hrefs = (p.audioPaths && p.audioPaths.length) ? p.audioPaths : [p.audioPath];
+        hrefs = hrefs.filter(Boolean);
+        out.audio_path = p.audioPath || hrefs[0] || '';   // legacy field, kept for backward compat
+        out.media = hrefs.map(function (h) { return { href: h }; });  // canonical LIFT <media href>
+      }
       return out;
     });
     result.etymologies = (state.etymologies || []).map(adaptEtymology);

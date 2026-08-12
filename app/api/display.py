@@ -1,38 +1,16 @@
 from __future__ import annotations
 
 from flask import Blueprint, jsonify, request, current_app
-from functools import wraps
-from typing import Any, Dict
 
 from app.services.display_profile_service import DisplayProfileService
 from app.services.dictionary_service import DictionaryService
 from app.services.css_mapping_service import CSSMappingService
-
-def require_authentication(f):
-    """Decorator to require authentication for API endpoints."""
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        # Check if authentication is enabled in config
-        auth_enabled = current_app.config.get('REQUIRE_API_AUTHENTICATION', False)
-
-        if auth_enabled:
-            # Check for API key in headers or query parameters
-            api_key = request.headers.get('X-API-KEY') or request.args.get('api_key')
-
-            if not api_key:
-                return jsonify({"error": "Authentication required", "auth_required": True}), 401
-
-            # In a real implementation, validate the API key against a database
-            # For now, accept any non-empty API key
-            if not api_key.strip():
-                return jsonify({"error": "Invalid API key", "auth_required": True}), 401
-
-        return f(*args, **kwargs)
-    return decorated_function
+from app.utils.auth_decorators import require_auth
 
 display_bp = Blueprint("display", __name__, url_prefix="/api/display-profiles")
 
 @display_bp.route("", methods=["POST"])
+@require_auth("profiles:write")
 def create_profile():
     """
     Create a new display profile
@@ -109,6 +87,7 @@ def create_profile():
     return jsonify(profile.to_dict()), 201
 
 @display_bp.route("/<string:profile_id>", methods=["GET"])
+@require_auth("profiles:read")
 def get_profile(profile_id: str):
     """
     Get a display profile by ID
@@ -158,6 +137,7 @@ def get_profile(profile_id: str):
     return jsonify(profile.to_dict())
 
 @display_bp.route("", methods=["GET"])
+@require_auth("profiles:read")
 def list_profiles():
     """
     List all display profiles
@@ -192,7 +172,7 @@ def list_profiles():
     return jsonify([p.to_dict() for p in profiles]), 200
 
 @display_bp.route("/<string:profile_id>", methods=["PUT"])
-@require_authentication
+@require_auth("profiles:write")
 def update_profile(profile_id: str):
     """
     Update an existing display profile
@@ -292,7 +272,7 @@ def update_profile(profile_id: str):
     return jsonify(profile.to_dict())
 
 @display_bp.route("/<string:profile_id>", methods=["DELETE"])
-@require_authentication
+@require_auth("profiles:write")
 def delete_profile(profile_id: str):
     """
     Delete a display profile
@@ -341,7 +321,7 @@ def delete_profile(profile_id: str):
         return jsonify({"error": str(e)}), 400
 
 @display_bp.route("/entries/<string:entry_id>/preview")
-@require_authentication
+@require_auth("profiles:read")
 def preview_entry(entry_id: str):
     """
     Preview an entry with a specific display profile
@@ -399,6 +379,9 @@ def preview_entry(entry_id: str):
     if not profile_id:
         return jsonify({"error": "profile_id query parameter is required"}), 400
 
+    # entry_id is passed straight to build_entry_by_id_query, which escapes it for
+    # XQuery (quotes doubled) — so any id is accepted safely, including
+    # space-containing GUIDs.
     service = current_app.injector.get(CSSMappingService)
 
     # Get the profile
@@ -432,10 +415,12 @@ def preview_entry(entry_id: str):
         })
 
     except Exception as e:
-        return jsonify({"error": f"Failed to preview entry: {str(e)}"}), 500
+        current_app.logger.error("Failed to preview entry %s: %s", entry_id, e, exc_info=True)
+        return jsonify({"error": "Failed to generate entry preview"}), 500
 
 
 @display_bp.route("/templates", methods=["GET"])
+@require_auth("profiles:read")
 def list_style_templates():
     """List available CSS style templates."""
     try:
@@ -447,6 +432,7 @@ def list_style_templates():
 
 
 @display_bp.route("/<string:profile_id>/apply-template", methods=["POST"])
+@require_auth("profiles:write")
 def apply_style_template(profile_id: str):
     """Apply a style template to a display profile."""
     try:
@@ -468,6 +454,7 @@ def apply_style_template(profile_id: str):
 
 
 @display_bp.route("/validate-css", methods=["POST"])
+@require_auth("profiles:read")
 def validate_css():
     """Validate custom CSS syntax before saving a profile."""
     from app.api.display_profiles import validate_css_string
@@ -494,7 +481,13 @@ def validate_css():
 
 
 @display_bp.route("/preview", methods=["POST"])
+@require_auth("profiles:read")
 def preview_profile():
-    """Preview a profile configuration with a sample entry."""
-    from app.api.display_profiles import preview_profile as _preview_profile
-    return _preview_profile()
+    """Preview a profile configuration with a sample entry.
+
+    Delegates to the shared, undecorated preview implementation (auth already
+    happened here — no double authentication).
+    """
+    from app.api.display_profiles import preview_profile_impl
+
+    return preview_profile_impl(request.get_json())

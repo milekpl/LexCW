@@ -8,7 +8,7 @@ including searchable dropdowns and dynamic target language selection.
 from __future__ import annotations
 
 from flask_wtf import FlaskForm
-from wtforms import StringField, SelectField, SubmitField, BooleanField, IntegerField, validators
+from wtforms import StringField, SelectField, SubmitField, BooleanField, IntegerField, TextAreaField, validators
 from wtforms.validators import DataRequired, Length, Optional, NumberRange, Regexp
 from typing import Dict, Any, List, Union
 import json
@@ -159,6 +159,29 @@ class SettingsForm(FlaskForm):
         validators=[Optional(), Length(max=100)],
         default='gpt-4o',
         description='The model identifier (e.g. gpt-4o, deepseek-chat, gpt-4o-mini, o3-mini)'
+    )
+
+    # Text-to-speech (TTS) engine settings
+    tts_enabled = BooleanField(
+        'Enable text-to-speech',
+        description='Enables the "Generate Audio" button for pronunciations. Uses the configured TTS engine (Google Cloud TTS supports IPA).'
+    )
+    tts_google_credentials_json = TextAreaField(
+        'Google Cloud service-account JSON',
+        validators=[Optional()],
+        description='Paste the full service-account JSON for Google Cloud TTS. Leave empty to use the GOOGLE_APPLICATION_CREDENTIALS env var or application default credentials.'
+    )
+    tts_google_voice = StringField(
+        'Google voice',
+        validators=[Optional(), Length(max=100)],
+        default='en-GB-Standard-D',
+        description='Google Cloud TTS voice name, e.g. en-GB-Standard-D, en-US-Studio-Q.'
+    )
+    tts_google_language_code = StringField(
+        'Google language code',
+        validators=[Optional(), Length(max=20)],
+        default='en-GB',
+        description='Language code for the voice, e.g. en-GB, en-US.'
     )
 
     # External service URLs
@@ -323,6 +346,15 @@ class SettingsForm(FlaskForm):
                     self.wordsketch_url.data = getattr(ps, 'wordsketch_url', 'http://localhost:8083') or 'http://localhost:8083'
                     self.embedding_model.data = getattr(ps, 'embedding_model', 'jinaai/jina-embeddings-v3') or 'jinaai/jina-embeddings-v3'
                     self.embedding_device.data = getattr(ps, 'embedding_device', 'cpu') or 'cpu'
+
+                    # Populate TTS engine settings from settings_json['tts']
+                    tts_settings = (getattr(ps, 'settings_json', None) or {}).get('tts', {}) or {}
+                    gcp = tts_settings.get('google_cloud', {}) if isinstance(tts_settings, dict) else {}
+                    gcp = gcp if isinstance(gcp, dict) else {}
+                    self.tts_enabled.data = bool(gcp.get('enabled', False))
+                    self.tts_google_credentials_json.data = gcp.get('credentials_json', '') or ''
+                    self.tts_google_voice.data = gcp.get('voice', 'en-GB-Standard-D') or 'en-GB-Standard-D'
+                    self.tts_google_language_code.data = gcp.get('language_code', 'en-GB') or 'en-GB'
             except Exception:
                 pass
         
@@ -378,6 +410,15 @@ class SettingsForm(FlaskForm):
             self.wordsketch_url.data = config.get('wordsketch_url', 'http://localhost:8083') or 'http://localhost:8083'
             self.embedding_model.data = config.get('embedding_model', 'jinaai/jina-embeddings-v3') or 'jinaai/jina-embeddings-v3'
             self.embedding_device.data = config.get('embedding_device', 'cpu') or 'cpu'
+
+            # Populate TTS engine settings from settings_json['tts']
+            tts_settings = (config.get('settings_json', {}) or {}).get('tts', {}) or {}
+            gcp = tts_settings.get('google_cloud', {}) if isinstance(tts_settings, dict) else {}
+            gcp = gcp if isinstance(gcp, dict) else {}
+            self.tts_enabled.data = bool(gcp.get('enabled', False))
+            self.tts_google_credentials_json.data = gcp.get('credentials_json', '') or ''
+            self.tts_google_voice.data = gcp.get('voice', 'en-GB-Standard-D') or 'en-GB-Standard-D'
+            self.tts_google_language_code.data = gcp.get('language_code', 'en-GB') or 'en-GB'
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -445,6 +486,14 @@ class SettingsForm(FlaskForm):
             'wordsketch_url': self.wordsketch_url.data or 'http://localhost:8083',
             'embedding_model': self.embedding_model.data or 'jinaai/jina-embeddings-v3',
             'embedding_device': self.embedding_device.data or 'cpu',
+            'tts': {
+                'google_cloud': {
+                    'enabled': bool(self.tts_enabled.data),
+                    'credentials_json': (self.tts_google_credentials_json.data or '').strip(),
+                    'voice': self.tts_google_voice.data or 'en-GB-Standard-D',
+                    'language_code': self.tts_google_language_code.data or 'en-GB',
+                }
+            },
         }
         
     def get_language_statistics(self) -> Dict[str, Any]:

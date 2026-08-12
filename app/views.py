@@ -17,6 +17,7 @@ from flask import (
     current_app,
     session,
     send_from_directory,
+    send_file,
     Response,
     g,
     abort,
@@ -2102,17 +2103,25 @@ def relation_discovery():
     return render_template("discovery_dashboard.html", project_id=project_id)
 
 
-@main_bp.route("/audio/<filename>")
+@main_bp.route("/audio/<path:filename>")
 def audio_file(filename):
     """
-    Serve audio files.
+    Serve pronunciation audio files from the configured audio storage.
+
+    Files live under ``AUDIO_STORAGE_PATH/<project_db>/`` (see
+    ``app/services/tts/audio_storage.py``); LIFT stores only the bare relative
+    filename in ``<media href>``, which is resolved here.
 
     Args:
-        filename: Name of the audio file.
+        filename: Bare relative audio filename.
     """
-    return send_from_directory(
-        os.path.join(current_app.instance_path, "audio"), filename
-    )
+    from app.services.tts.audio_storage import resolve_audio_path
+
+    path = resolve_audio_path(filename)
+    if path is None or not path.is_file():
+        abort(404)
+    mime_type = "audio/mpeg" if path.suffix.lower() == ".mp3" else None
+    return send_file(str(path), mimetype=mime_type)
 
 
 # API endpoints for the frontend
@@ -2164,36 +2173,6 @@ def api_activity():
         return jsonify({"activities": activities})
     except Exception as e:
         logger.error(f"Error getting activity: {e}")
-        return jsonify({"error": str(e)}), 500
-
-
-@main_bp.route("/api/pronunciations/generate", methods=["POST"])
-def api_generate_pronunciation():
-    """
-    Generate pronunciation audio.
-    """
-    try:
-        data = request.get_json()
-        if not data:
-            return jsonify({"error": "No data provided"}), 400
-
-        word = data.get("word")
-        ipa = data.get("ipa")
-
-        if not word:
-            return jsonify({"error": "Word is required"}), 400
-
-        # This would typically generate audio using TTS
-        # For now, just return a placeholder
-
-        # Create a unique filename
-        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-        filename = f"pronunciation_{timestamp}.mp3"
-
-        # Return the audio URL
-        return jsonify({"audio_url": f"/audio/{filename}", "word": word, "ipa": ipa})
-    except Exception as e:
-        logger.error(f"Error generating pronunciation: {e}")
         return jsonify({"error": str(e)}), 500
 
 

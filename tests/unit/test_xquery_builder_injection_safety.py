@@ -62,3 +62,20 @@ def test_build_reverse_related_entries_query_escapes_inputs() -> None:
 
     assert f'@ref="{escaped_entry_id}"' in query
     assert f'[@type="{escaped_relation_type}"]' in query
+
+
+@pytest.mark.unit
+def test_build_entry_by_id_query_escapes_injection_and_accepts_spaces() -> None:
+    # Quote-payload must be escaped (doubled), never interpolated raw.
+    malicious = 'x"] | //entry | ["'
+    query = XQueryBuilder.build_entry_by_id_query(malicious, "test_db", has_namespace=False)
+    assert malicious not in query
+    escaped = XQueryBuilder.escape_xquery_string(malicious)
+    assert f'[@id="{escaped}"' in query
+
+    # Space-containing GUIDs (the user's corpus format) must pass through intact
+    # inside the literal — spaces are legal in XQuery string literals.
+    spaced = "00008ca0 80a0 4d10 91d1 eb4bfff5db10"
+    query_spaced = XQueryBuilder.build_entry_by_id_query(spaced, "test_db", has_namespace=False)
+    assert f'@id="{spaced}"' in query_spaced
+    assert f'@guid="{spaced}"' in query_spaced

@@ -9,13 +9,24 @@ Tests cover:
 
 import pytest
 import json
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from app.services.css_mapping_service import CSSMappingService
 from app.services.display_profile_service import DisplayProfileService
 from app.models.display_profile import DisplayProfile, ProfileElement
 from app.api.display_profiles import validate_css_string
 from app.utils.lift_to_html_transformer import LIFTToHTMLTransformer, ElementConfig
+
+
+@pytest.fixture
+def authed_client(client):
+    """Client with a mocked session user (display-profile routes now use require_auth)."""
+    dummy = MagicMock()
+    dummy.id = 1
+    dummy.username = "tester"
+    dummy.is_admin = True
+    with patch("app.utils.auth_decorators.get_current_user", return_value=dummy):
+        yield client
 
 
 class TestCSSStyleTemplates:
@@ -145,23 +156,23 @@ class TestDictionaryStyleRendering:
 class TestAPIEndpoints:
     """Test suite for API endpoints on /api/profiles and /api/display-profiles."""
 
-    def test_list_templates_endpoint(self, client):
-        response = client.get("/api/profiles/templates")
+    def test_list_templates_endpoint(self, authed_client):
+        response = authed_client.get("/api/profiles/templates")
         assert response.status_code == 200
         data = response.get_json()
         assert "templates" in data
         assert len(data["templates"]) >= 4
 
         # Test alias route on profiles blueprint
-        alias_resp = client.get("/api/profiles/display-profiles/templates")
+        alias_resp = authed_client.get("/api/profiles/display-profiles/templates")
         assert alias_resp.status_code == 200
         alias_data = alias_resp.get_json()
         assert "templates" in alias_data
 
 
-    def test_validate_css_endpoint(self, client):
+    def test_validate_css_endpoint(self, authed_client):
         payload = {"custom_css": ".headword { font-weight: bold; }"}
-        response = client.post(
+        response = authed_client.post(
             "/api/profiles/validate-css",
             data=json.dumps(payload),
             content_type="application/json"
@@ -170,14 +181,14 @@ class TestAPIEndpoints:
         data = response.get_json()
         assert data["valid"] is True
 
-    def test_preview_endpoint(self, client, app):
+    def test_preview_endpoint(self, authed_client, app):
         payload = {
             "elements": [
                 {"lift_element": "lexical-unit", "display_order": 1, "css_class": "headword"}
             ],
             "custom_css": ".headword { color: blue; }"
         }
-        response = client.post(
+        response = authed_client.post(
             "/api/profiles/preview",
             data=json.dumps(payload),
             content_type="application/json"

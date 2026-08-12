@@ -18,6 +18,7 @@ from app.utils.db_utils import safe_commit
 from app.services.display_profile_service import DisplayProfileService
 from app.services.lift_element_registry import LIFTElementRegistry
 from app.utils.api_response_handler import api_response_handler, get_service
+from app.utils.auth_decorators import require_auth
 
 profiles_bp = Blueprint("display_profiles", __name__, url_prefix="/api/profiles")
 
@@ -37,6 +38,7 @@ def get_service() -> DisplayProfileService:
 
 
 @profiles_bp.route("", methods=["GET"])
+@require_auth("profiles:read")
 def list_profiles():
     """
     List all display profiles
@@ -85,6 +87,7 @@ def list_profiles():
 
 
 @profiles_bp.route("/<int:profile_id>", methods=["GET"])
+@require_auth("profiles:read")
 def get_profile(profile_id: int):
     """
     Get a specific display profile
@@ -113,6 +116,7 @@ def get_profile(profile_id: int):
 
 
 @profiles_bp.route("/default", methods=["GET"])
+@require_auth("profiles:read")
 def get_default_profile():
     """
     Get the default display profile
@@ -135,6 +139,7 @@ def get_default_profile():
 
 
 @profiles_bp.route("", methods=["POST"])
+@require_auth("profiles:write")
 def create_profile():
     """
     Create a new display profile
@@ -204,6 +209,7 @@ def create_profile():
 
 
 @profiles_bp.route("/<int:profile_id>", methods=["PUT", "PATCH"])
+@require_auth("profiles:write")
 def update_profile(profile_id: int):
     """
     Update a display profile
@@ -269,6 +275,7 @@ def update_profile(profile_id: int):
 
 
 @profiles_bp.route("/<int:profile_id>", methods=["DELETE"])
+@require_auth("profiles:write")
 def delete_profile(profile_id: int):
     """
     Delete a display profile
@@ -307,6 +314,7 @@ def delete_profile(profile_id: int):
 
 @profiles_bp.route("/<int:profile_id>/default", methods=["POST"])
 @api_response_handler(handle_not_found=True)
+@require_auth("profiles:write")
 def set_default_profile(profile_id: int):
     """
     Set a profile as the default
@@ -332,6 +340,7 @@ def set_default_profile(profile_id: int):
 
 @profiles_bp.route("/create-default", methods=["POST"])
 @api_response_handler(success_status=201)
+@require_auth("profiles:write")
 def create_default_from_registry():
     """
     Create a profile from the registry's default configuration
@@ -362,6 +371,7 @@ def create_default_from_registry():
 
 
 @profiles_bp.route("/<int:profile_id>/export", methods=["GET"])
+@require_auth("profiles:read")
 def export_profile(profile_id: int):
     """
     Export a profile as JSON
@@ -393,6 +403,7 @@ def export_profile(profile_id: int):
 
 
 @profiles_bp.route("/import", methods=["POST"])
+@require_auth("profiles:write")
 def import_profile():
     """
     Import a profile from JSON
@@ -448,6 +459,7 @@ def import_profile():
 
 
 @profiles_bp.route("/preview", methods=["POST"])
+@require_auth("profiles:read")
 def preview_profile():
     """
     Preview a profile configuration with a sample entry
@@ -474,8 +486,15 @@ def preview_profile():
       400:
         description: Invalid data
     """
-    data = request.get_json()
+    return preview_profile_impl(request.get_json())
 
+
+def preview_profile_impl(data):
+    """Core preview logic, shared by /api/profiles/preview and /api/display-profiles/preview.
+
+    No route/auth decorators here — the routes own authentication — so a blueprint
+    delegating to the other does not authenticate twice.
+    """
     if not data:
         return jsonify({"error": "Request body is required"}), 400
 
@@ -544,6 +563,11 @@ def preview_profile():
             dict_service = None
 
         entry_id = data.get('entry_id')
+        if entry_id is not None:
+            entry_id = str(entry_id).strip() or None
+            # entry_id flows into build_entry_by_id_query, which escapes it for
+            # XQuery (quotes doubled) — any id is accepted safely, including
+            # space-containing GUIDs; nothing to whitelist here.
         entry_xml = None
 
         if dict_service and hasattr(dict_service, 'db_connector') and dict_service.db_connector:
@@ -609,8 +633,8 @@ def preview_profile():
         return jsonify(result_data), 200
 
     except Exception as e:
-        current_app.logger.error(f"Error generating preview: {e}", exc_info=True)
-        return jsonify({"error": str(e)}), 500
+        current_app.logger.error("Error generating preview: %s", e, exc_info=True)
+        return jsonify({"error": "Failed to generate preview"}), 500
 
 
 class _CssLogCapture(logging.Handler):
@@ -683,6 +707,7 @@ def validate_css_string(css: str) -> tuple[list[dict], list[dict]]:
 
 
 @profiles_bp.route("/validate-css", methods=["POST"])
+@require_auth("profiles:read")
 def validate_css():
     """
     Validate custom CSS syntax before saving a profile
@@ -763,6 +788,7 @@ def validate_css():
 
 @profiles_bp.route("/display-profiles/templates", methods=["GET"])
 @profiles_bp.route("/templates", methods=["GET"])
+@require_auth("profiles:read")
 def list_style_templates():
     """
     List available CSS style templates
@@ -784,6 +810,7 @@ def list_style_templates():
 
 @profiles_bp.route("/display-profiles/<string:profile_id>/apply-template", methods=["POST"])
 @profiles_bp.route("/<string:profile_id>/apply-template", methods=["POST"])
+@require_auth("profiles:write")
 def apply_style_template(profile_id: str):
     """
     Apply a style template to a display profile

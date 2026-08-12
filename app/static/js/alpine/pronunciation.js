@@ -38,6 +38,7 @@
             value: '',
             type: 'seh-fonipa',
             audioPath: '',
+            audioPaths: [],
             isDefault: this.items.length === 0,
             cvPattern: [],
             tone: [],

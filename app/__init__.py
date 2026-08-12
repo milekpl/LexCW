@@ -198,6 +198,15 @@ def create_app(config_name=None):
     os.makedirs(os.path.join(app.static_folder, "audio"), exist_ok=True)
     os.makedirs(os.path.join(app.static_folder, "images"), exist_ok=True)
 
+    # One-time migration of legacy audio from app/static/audio into the configured
+    # audio storage (idempotent; files already present in the target are skipped).
+    try:
+        from app.services.tts.audio_storage import migrate_legacy_audio
+
+        migrate_legacy_audio()
+    except Exception:
+        app.logger.warning("Legacy audio migration failed", exc_info=True)
+
     # Register blueprints
     from app.api import api_bp
 

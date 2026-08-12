@@ -671,3 +671,173 @@ describe('entryMeta golden test (Part A) — entry-level POS + morph_type round-
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// Pronunciation audio round-trip (TTS plugin feature)
+// ---------------------------------------------------------------------------
+
+describe('pronunciation audio persistence', () => {
+  let serializer;
+
+  beforeEach(() => {
+    serializer = new LIFTXMLSerializer();
+  });
+
+  test('normalizeEntry maps entry-level pronunciation_media href onto the dict-shape item', () => {
+    const entry = {
+      id: 'audio-entry-1',
+      lexical_unit: { en: 'tree' },
+      pronunciations: { 'seh-fonipa': 'triː' },
+      pronunciation_media: [{ href: 'en-GB_tree_a1b2c3d4e5f6.mp3' }],
+      senses: []
+    };
+    const state = normalizeEntry(entry);
+    expect(state.pronunciations).toHaveLength(1);
+    expect(state.pronunciations[0].audioPath).toBe('en-GB_tree_a1b2c3d4e5f6.mp3');
+  });
+
+  test('normalizePronunciation reads per-item media href (array shape)', () => {
+    const entry = {
+      id: 'audio-entry-2',
+      lexical_unit: { en: 'sea' },
+      pronunciations: [{
+        id: 'p1',
+        value: 'siː',
+        type: 'seh-fonipa',
+        media: [{ href: 'en-GB_sea_f6e5d4c3b2a1.mp3' }]
+      }],
+      senses: []
+    };
+    const state = normalizeEntry(entry);
+    expect(state.pronunciations[0].audioPath).toBe('en-GB_sea_f6e5d4c3b2a1.mp3');
+  });
+
+  test('adapter emits media href array from audioPath', () => {
+    const state = normalizeEntry({
+      id: 'audio-entry-3',
+      lexical_unit: { en: 'run' },
+      pronunciations: [{ id: 'p1', value: 'rʌn', type: 'seh-fonipa', audio_path: 'en-GB_run_001122334455.mp3' }],
+      senses: []
+    });
+    const serializerInput = alpineStateToSerializerInput(state);
+    expect(serializerInput.pronunciations[0].audio_path).toBe('en-GB_run_001122334455.mp3');
+    expect(serializerInput.pronunciations[0].media).toEqual([
+      { href: 'en-GB_run_001122334455.mp3' }
+    ]);
+  });
+
+  test('round-trip: audioPath survives normalize → adapt → serialize as <media href>', () => {
+    const entry = {
+      id: 'audio-entry-4',
+      lexical_unit: { en: 'tree' },
+      pronunciations: { 'seh-fonipa': 'triː' },
+      pronunciation_media: [{ href: 'en-GB_tree_a1b2c3d4e5f6.mp3' }],
+      senses: []
+    };
+    const state = normalizeEntry(entry);
+    const serializerInput = alpineStateToSerializerInput(state);
+    const xml = serializer.serializeEntry(serializerInput);
+    expect(xml).toContain('<media href="en-GB_tree_a1b2c3d4e5f6.mp3"');
+  });
+});
+
+describe('pronunciation audio correlation (ambiguous media lists)', () => {
+  test('does not attach audio when media count mismatches pronunciation count', () => {
+    // Two pronunciations, only one audio file: order correlation is ambiguous,
+    // so no audioPath is attached rather than guessing wrong.
+    const entry = {
+      id: 'audio-entry-5',
+      lexical_unit: { en: 'run' },
+      pronunciations: { 'seh-fonipa': 'rʌn', 'x-other': 'rʊn' },
+      pronunciation_media: [{ href: 'en-GB_run_aaaabbbbcccc.mp3' }],
+      senses: []
+    };
+    const state = normalizeEntry(entry);
+    expect(state.pronunciations).toHaveLength(2);
+    expect(state.pronunciations[0].audioPath).toBe('');
+    expect(state.pronunciations[1].audioPath).toBe('');
+  });
+
+  test('attaches audio when counts match exactly', () => {
+    const entry = {
+      id: 'audio-entry-6',
+      lexical_unit: { en: 'run' },
+      pronunciations: { 'seh-fonipa': 'rʌn' },
+      pronunciation_media: [{ href: 'en-GB_run_aaaabbbbcccc.mp3' }],
+      senses: []
+    };
+    const state = normalizeEntry(entry);
+    expect(state.pronunciations[0].audioPath).toBe('en-GB_run_aaaabbbbcccc.mp3');
+  });
+});
+
+describe('multi-audio pronunciations (expanded comma-delimited IPA)', () => {
+  let serializer;
+
+  beforeEach(() => {
+    serializer = new LIFTXMLSerializer();
+  });
+
+  test('array-shape item keeps all media hrefs in audioPaths', () => {
+    const entry = {
+      id: 'multi-audio-1',
+      lexical_unit: { en: 'tree' },
+      pronunciations: [{
+        id: 'p1',
+        value: 'triː, ˈtɹiː',
+        type: 'seh-fonipa',
+        media: [
+          { href: 'en-GB_tree_111111111111.mp3' },
+          { href: 'en-GB_tree_222222222222.mp3' }
+        ]
+      }],
+      senses: []
+    };
+    const state = normalizeEntry(entry);
+    expect(state.pronunciations[0].audioPaths).toEqual([
+      'en-GB_tree_111111111111.mp3',
+      'en-GB_tree_222222222222.mp3'
+    ]);
+    expect(state.pronunciations[0].audioPath).toBe('en-GB_tree_111111111111.mp3');
+  });
+
+  test('adapter emits all media hrefs from audioPaths', () => {
+    const state = normalizeEntry({
+      id: 'multi-audio-2',
+      lexical_unit: { en: 'tree' },
+      pronunciations: [{
+        id: 'p1',
+        value: 'triː, ˈtɹiː',
+        type: 'seh-fonipa',
+        media: [
+          { href: 'en-GB_tree_111111111111.mp3' },
+          { href: 'en-GB_tree_222222222222.mp3' }
+        ]
+      }],
+      senses: []
+    });
+    const serializerInput = alpineStateToSerializerInput(state);
+    expect(serializerInput.pronunciations[0].media).toEqual([
+      { href: 'en-GB_tree_111111111111.mp3' },
+      { href: 'en-GB_tree_222222222222.mp3' }
+    ]);
+  });
+
+  test('round-trip: multiple <media href> survive normalize → adapt → serialize', () => {
+    const entry = {
+      id: 'multi-audio-3',
+      lexical_unit: { en: 'tree' },
+      pronunciations: { 'seh-fonipa': 'triː, ˈtɹiː' },
+      pronunciation_media: [
+        { href: 'en-GB_tree_111111111111.mp3' },
+        { href: 'en-GB_tree_222222222222.mp3' }
+      ],
+      senses: []
+    };
+    const state = normalizeEntry(entry);
+    const serializerInput = alpineStateToSerializerInput(state);
+    const xml = serializer.serializeEntry(serializerInput);
+    expect(xml).toContain('<media href="en-GB_tree_111111111111.mp3"');
+    expect(xml).toContain('<media href="en-GB_tree_222222222222.mp3"');
+  });
+});

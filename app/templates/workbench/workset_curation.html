@@ -80,6 +80,11 @@
             <button type="button" class="btn btn-outline-warning ms-2" id="btn-favorite" title="Toggle favorite (f)">
                 <i class="bi bi-star"></i> Add to Favorites
             </button>
+
+            <button type="button" class="btn btn-outline-primary ms-2" id="btn-generate-audio"
+                    title="Generate pronunciation audio (TTS) for entries in this workset or missing audio">
+                <i class="bi bi-mic"></i> Generate Audio
+            </button>
         </div>
     </div>
 
@@ -109,6 +114,51 @@
                 <span class="ms-2"><strong>f</strong> Favorite</span>
                 <span class="ms-2"><strong>Home</strong> First</span>
                 <span class="ms-2"><strong>End</strong> Last</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+{# TTS batch audio modal #}
+<div class="modal fade" id="audioBatchModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-mic"></i> Generate Pronunciation Audio</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="audio-batch-mode"
+                               id="audio-mode-workset" value="workset" checked>
+                        <label class="form-check-label" for="audio-mode-workset">Entries in this workset</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="audio-batch-mode"
+                               id="audio-mode-missing" value="missing_audio">
+                        <label class="form-check-label" for="audio-mode-missing">All entries missing audio</label>
+                    </div>
+                    <small class="form-text text-muted">
+                        Generates audio via the configured TTS engine for each pronunciation
+                        (comma-delimited IPA lists are expanded) and attaches it to the entry.
+                        Runs in the background; you can close this dialog and check back.
+                    </small>
+                </div>
+                <div id="audio-batch-progress" class="d-none">
+                    <div class="progress mb-2" style="height: 20px;">
+                        <div id="audio-batch-progress-bar"
+                             class="progress-bar progress-bar-striped progress-bar-animated" style="width:0%">0%</div>
+                    </div>
+                    <div id="audio-batch-status" class="small text-muted"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-danger" id="audio-batch-cancel" disabled>Cancel</button>
+                <button type="button" class="btn btn-primary" id="audio-batch-start">
+                    <i class="bi bi-play-fill"></i> Start
+                </button>
             </div>
         </div>
     </div>

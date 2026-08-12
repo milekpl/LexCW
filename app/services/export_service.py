@@ -14,7 +14,7 @@ import os
 import zipfile
 import logging
 from datetime import datetime
-from typing import Optional, Tuple, Dict, Any, Union
+from typing import Optional, Tuple, Dict, Any, Union, List
 from flask import Response, send_from_directory, jsonify
 from pathlib import Path
 
@@ -99,7 +99,7 @@ class ExportService:
         base_filename: str,
         as_download: bool
     ) -> Union[Response, str]:
-        """Export LIFT as single file."""
+        """Export LIFT as single file (zip with audio when media is present)."""
         filename = f"{base_filename}.lift"
         
         # Get LIFT content from service
@@ -111,12 +111,54 @@ class ExportService:
         
         if not as_download:
             return lift_xml
-        
+
+        # Package referenced audio so the export is self-contained.
+        media_files = self._collect_media_files(lift_xml)
+        if not media_files:
+            return Response(
+                lift_xml,
+                content_type='application/xml; charset=utf-8',
+                headers={'Content-Disposition': f'attachment; filename="{filename}"'}
+            )
+
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            zipf.writestr(filename, lift_xml)
+            for audio_name, audio_path in media_files:
+                zipf.write(str(audio_path), f"audio/{audio_name}")
+        zip_name = f"{base_filename}.zip"
         return Response(
-            lift_xml,
-            content_type='application/xml; charset=utf-8',
-            headers={'Content-Disposition': f'attachment; filename="{filename}"'}
+            zip_buffer.getvalue(),
+            content_type='application/zip',
+            headers={'Content-Disposition': f'attachment; filename="{zip_name}"'}
         )
+
+    def _collect_media_files(self, lift_xml: str) -> List[tuple]:
+        """Collect local audio files referenced by ``<media href>`` in the export.
+
+        Returns a list of ``(filename, Path)`` for files found in the configured
+        audio storage. Absolute paths and remote (http/https) hrefs are skipped —
+        LIFT media references must stay bare relative filenames.
+        """
+        import re
+        from app.services.tts import audio_storage
+
+        hrefs = re.findall(r'<media\s+href="([^"]+)"', lift_xml)
+        found: List[tuple] = []
+        seen = set()
+        for href in hrefs:
+            if href in seen:
+                continue
+            seen.add(href)
+            if href.startswith(('http://', 'https://', '/', '\\')) or '..' in href:
+                logger.debug("Skipping non-relative media href: %r", href)
+                continue
+            path = audio_storage.resolve_audio_path(href)
+            if path and path.is_file():
+                found.append((path.name, path))
+            else:
+                logger.debug("Media file not found in audio storage: %r", href)
+        return found
     
     def _export_lift_dual(
         self,
@@ -141,10 +183,15 @@ class ExportService:
             if not ranges_xml.startswith('<?xml'):
                 ranges_xml = '<?xml version="1.0" encoding="UTF-8"?>\n' + ranges_xml
             
+            # Package referenced audio into the archive so the export is self-contained
+            media_files = self._collect_media_files(lift_xml)
+            
             # Create ZIP
             with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zipf:
                 zipf.writestr(lift_filename, lift_xml)
                 zipf.writestr(ranges_filename, ranges_xml)
+                for audio_name, audio_path in media_files:
+                    zipf.write(str(audio_path), f"audio/{audio_name}")
             
             return Response(
                 zip_buffer.getvalue(),

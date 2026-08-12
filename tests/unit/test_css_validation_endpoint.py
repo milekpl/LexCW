@@ -8,14 +8,26 @@ from __future__ import annotations
 
 import pytest
 from flask import Flask
+from unittest.mock import MagicMock, patch
+
+
+@pytest.fixture
+def authed_client(client):
+    """Client with a mocked session user (validate-css now uses require_auth)."""
+    dummy = MagicMock()
+    dummy.id = 1
+    dummy.username = "tester"
+    dummy.is_admin = True
+    with patch("app.utils.auth_decorators.get_current_user", return_value=dummy):
+        yield client
 
 
 class TestCSSValidationEndpoint:
     """Test suite for CSS validation API endpoint."""
 
-    def test_validate_empty_css_returns_valid(self, client):
+    def test_validate_empty_css_returns_valid(self, authed_client):
         """Empty CSS should be considered valid."""
-        response = client.post(
+        response = authed_client.post(
             '/api/profiles/validate-css',
             json={'custom_css': ''},
             content_type='application/json'
@@ -26,9 +38,9 @@ class TestCSSValidationEndpoint:
         assert data['errors'] == []
         assert data['warnings'] == []
 
-    def test_validate_whitespace_css_returns_valid(self, client):
+    def test_validate_whitespace_css_returns_valid(self, authed_client):
         """CSS with only whitespace should be valid."""
-        response = client.post(
+        response = authed_client.post(
             '/api/profiles/validate-css',
             json={'custom_css': '   \n\n   \n  '},
             content_type='application/json'
@@ -37,7 +49,7 @@ class TestCSSValidationEndpoint:
         data = response.get_json()
         assert data['valid'] is True
 
-    def test_validate_valid_css_returns_valid(self, client):
+    def test_validate_valid_css_returns_valid(self, authed_client):
         """Valid CSS should return valid=true with no errors."""
         valid_css = """
         .sense {
@@ -48,7 +60,7 @@ class TestCSSValidationEndpoint:
             font-weight: bold;
         }
         """
-        response = client.post(
+        response = authed_client.post(
             '/api/profiles/validate-css',
             json={'custom_css': valid_css},
             content_type='application/json'
@@ -61,7 +73,7 @@ class TestCSSValidationEndpoint:
         # semicolon" warning on every normal declaration. Valid CSS must be clean.
         assert data['warnings'] == []
 
-    def test_validate_unclosed_brace_returns_invalid(self, client):
+    def test_validate_unclosed_brace_returns_invalid(self, authed_client):
         """CSS with an unclosed brace followed by more rules should error.
 
         Note: cssutils (like a browser) tolerates a *trailing* unclosed brace at
@@ -79,7 +91,7 @@ class TestCSSValidationEndpoint:
             font-style: italic;
         }
         """
-        response = client.post(
+        response = authed_client.post(
             '/api/profiles/validate-css',
             json={'custom_css': invalid_css},
             content_type='application/json'
@@ -92,7 +104,7 @@ class TestCSSValidationEndpoint:
         for error in data['errors']:
             assert error['line'] >= 1
 
-    def test_validate_extra_closing_brace_returns_invalid(self, client):
+    def test_validate_extra_closing_brace_returns_invalid(self, authed_client):
         """CSS with extra closing brace should return errors."""
         invalid_css = """
         .sense {
@@ -102,7 +114,7 @@ class TestCSSValidationEndpoint:
             font-weight: bold;
         }
         """
-        response = client.post(
+        response = authed_client.post(
             '/api/profiles/validate-css',
             json={'custom_css': invalid_css},
             content_type='application/json'
@@ -112,7 +124,7 @@ class TestCSSValidationEndpoint:
         assert data['valid'] is False
         assert len(data['errors']) > 0
 
-    def test_validate_unclosed_single_quote_returns_error(self, client):
+    def test_validate_unclosed_single_quote_returns_error(self, authed_client):
         """CSS with unclosed single quote should return error."""
         invalid_css = """
         .sense {
@@ -120,7 +132,7 @@ class TestCSSValidationEndpoint:
             color: blue;
         }
         """
-        response = client.post(
+        response = authed_client.post(
             '/api/profiles/validate-css',
             json={'custom_css': invalid_css},
             content_type='application/json'
@@ -131,7 +143,7 @@ class TestCSSValidationEndpoint:
         assert data['valid'] is False
         assert len(data['errors']) > 0
 
-    def test_validate_unclosed_double_quote_returns_error(self, client):
+    def test_validate_unclosed_double_quote_returns_error(self, authed_client):
         """CSS with unclosed double quote should return error."""
         invalid_css = """
         .sense {
@@ -139,7 +151,7 @@ class TestCSSValidationEndpoint:
             color: red;
         }
         """
-        response = client.post(
+        response = authed_client.post(
             '/api/profiles/validate-css',
             json={'custom_css': invalid_css},
             content_type='application/json'
@@ -150,14 +162,14 @@ class TestCSSValidationEndpoint:
         assert data['valid'] is False
         assert len(data['errors']) > 0
 
-    def test_validate_empty_declaration_returns_invalid(self, client):
+    def test_validate_empty_declaration_returns_invalid(self, authed_client):
         """An empty value (':;' with a stray token) is a real syntax error."""
         css_with_typo = """
         .sense {
             color:; red;
         }
         """
-        response = client.post(
+        response = authed_client.post(
             '/api/profiles/validate-css',
             json={'custom_css': css_with_typo},
             content_type='application/json'
@@ -168,10 +180,10 @@ class TestCSSValidationEndpoint:
         assert data['valid'] is False
         assert len(data['errors']) > 0
 
-    def test_validate_missing_request_body_returns_valid(self, client):
+    def test_validate_missing_request_body_returns_valid(self, authed_client):
         """Missing request body should return valid (empty CSS)."""
         # Send JSON content-type with empty body
-        response = client.post(
+        response = authed_client.post(
             '/api/profiles/validate-css',
             data='',
             content_type='application/json'
@@ -180,9 +192,9 @@ class TestCSSValidationEndpoint:
         data = response.get_json()
         assert data['valid'] is True
 
-    def test_validate_empty_json_returns_valid(self, client):
+    def test_validate_empty_json_returns_valid(self, authed_client):
         """Empty JSON object should return valid (empty CSS)."""
-        response = client.post(
+        response = authed_client.post(
             '/api/profiles/validate-css',
             json={},
             content_type='application/json'
@@ -191,7 +203,7 @@ class TestCSSValidationEndpoint:
         data = response.get_json()
         assert data['valid'] is True
 
-    def test_validate_nested_selectors(self, client):
+    def test_validate_nested_selectors(self, authed_client):
         """Nested selectors should be valid."""
         valid_css = """
         .entry .sense {
@@ -201,7 +213,7 @@ class TestCSSValidationEndpoint:
             font-style: italic;
         }
         """
-        response = client.post(
+        response = authed_client.post(
             '/api/profiles/validate-css',
             json={'custom_css': valid_css},
             content_type='application/json'
@@ -210,7 +222,7 @@ class TestCSSValidationEndpoint:
         data = response.get_json()
         assert data['valid'] is True
 
-    def test_validate_pseudo_selectors(self, client):
+    def test_validate_pseudo_selectors(self, authed_client):
         """Pseudo-classes and pseudo-elements should be valid."""
         valid_css = """
         .sense:first-child {
@@ -223,7 +235,7 @@ class TestCSSValidationEndpoint:
             color: blue;
         }
         """
-        response = client.post(
+        response = authed_client.post(
             '/api/profiles/validate-css',
             json={'custom_css': valid_css},
             content_type='application/json'
@@ -232,7 +244,7 @@ class TestCSSValidationEndpoint:
         data = response.get_json()
         assert data['valid'] is True
 
-    def test_validate_media_query(self, client):
+    def test_validate_media_query(self, authed_client):
         """Media queries should be valid."""
         valid_css = """
         .sense {
@@ -244,7 +256,7 @@ class TestCSSValidationEndpoint:
             }
         }
         """
-        response = client.post(
+        response = authed_client.post(
             '/api/profiles/validate-css',
             json={'custom_css': valid_css},
             content_type='application/json'
@@ -253,7 +265,7 @@ class TestCSSValidationEndpoint:
         data = response.get_json()
         assert data['valid'] is True
 
-    def test_validate_css_comments(self, client):
+    def test_validate_css_comments(self, authed_client):
         """CSS comments should be handled correctly."""
         valid_css = """
         /* This is a comment */
@@ -266,7 +278,7 @@ class TestCSSValidationEndpoint:
             font-weight: bold;
         }
         """
-        response = client.post(
+        response = authed_client.post(
             '/api/profiles/validate-css',
             json={'custom_css': valid_css},
             content_type='application/json'
@@ -275,7 +287,7 @@ class TestCSSValidationEndpoint:
         data = response.get_json()
         assert data['valid'] is True
 
-    def test_validate_error_includes_line_number(self, client):
+    def test_validate_error_includes_line_number(self, authed_client):
         """Errors should include line number information."""
         invalid_css = """\
 .sense {
@@ -284,7 +296,7 @@ class TestCSSValidationEndpoint:
     font-weight: bold;
 }
 """
-        response = client.post(
+        response = authed_client.post(
             '/api/profiles/validate-css',
             json={'custom_css': invalid_css},
             content_type='application/json'
@@ -296,7 +308,7 @@ class TestCSSValidationEndpoint:
             assert 'line' in error
             assert error['line'] >= 1
 
-    def test_validate_modern_css_returns_valid(self, client):
+    def test_validate_modern_css_returns_valid(self, authed_client):
         """Modern CSS (flexbox, custom properties) must not be rejected.
 
         cssutils only knows CSS 2.1, so validation is run with ``validate=False``
@@ -309,7 +321,7 @@ class TestCSSValidationEndpoint:
             color: var(--accent, #333);
         }
         """
-        response = client.post(
+        response = authed_client.post(
             '/api/profiles/validate-css',
             json={'custom_css': modern_css},
             content_type='application/json'

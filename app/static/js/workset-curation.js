@@ -9,6 +9,8 @@
  * - Keyboard shortcuts
  */
 
+/* global bootstrap */
+
 class WorksetCuration {
     constructor() {
         this.currentWorksetId = null;
@@ -431,6 +433,7 @@ class WorksetCuration {
         this.loadCurrentEntry(0);
 
         this.setupCurationControls();
+        this.initAudioBatch();
     }
 
     async loadCurationProgress() {
@@ -759,6 +762,140 @@ class WorksetCuration {
                     this.navigate('last');
                     break;
             }
+        });
+    }
+
+    // ============ TTS BATCH AUDIO ============
+
+    initAudioBatch() {
+        const btn = document.getElementById('btn-generate-audio');
+        if (!btn) return;
+
+        btn.addEventListener('click', () => {
+            const modalEl = document.getElementById('audioBatchModal');
+            if (!modalEl) return;
+            this.resetAudioBatchModal();
+            bootstrap.Modal.getOrCreateInstance(modalEl).show();
+        });
+
+        document.getElementById('audio-batch-start')?.addEventListener('click', () => this.startAudioBatch());
+        document.getElementById('audio-batch-cancel')?.addEventListener('click', () => this.cancelAudioBatch());
+    }
+
+    resetAudioBatchModal() {
+        this.audioBatchJobId = null;
+        if (this.audioBatchPollTimer) {
+            clearTimeout(this.audioBatchPollTimer);
+            this.audioBatchPollTimer = null;
+        }
+        document.getElementById('audio-batch-progress')?.classList.add('d-none');
+        const statusReset = document.getElementById('audio-batch-status');
+        if (statusReset) statusReset.textContent = '';
+        const bar = document.getElementById('audio-batch-progress-bar');
+        if (bar) { bar.style.width = '0%'; bar.textContent = '0%'; }
+        const start = document.getElementById('audio-batch-start');
+        const cancel = document.getElementById('audio-batch-cancel');
+        if (start) start.disabled = false;
+        if (cancel) cancel.disabled = true;
+    }
+
+    async startAudioBatch() {
+        const mode = document.querySelector('input[name="audio-batch-mode"]:checked')?.value || 'workset';
+        const start = document.getElementById('audio-batch-start');
+        const cancel = document.getElementById('audio-batch-cancel');
+        const statusEl = document.getElementById('audio-batch-status');
+        if (start) start.disabled = true;
+        if (cancel) cancel.disabled = true;
+        if (statusEl) statusEl.textContent = 'Starting...';
+        document.getElementById('audio-batch-progress')?.classList.remove('d-none');
+
+        const body = mode === 'missing_audio'
+            ? { mode: 'missing_audio' }
+            : { mode: 'workset', workset_id: this.currentWorksetId };
+
+        try {
+            const response = await fetch('/api/pronunciation/batch', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': this.getCsrfToken()
+                },
+                body: JSON.stringify(body)
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok || !data.success) {
+                throw new Error(data.message || data.error || 'Failed to start batch job (HTTP ' + response.status + ')');
+            }
+            if (data.total === 0) {
+                if (statusEl) statusEl.textContent = data.message || 'No entries to process';
+                if (start) start.disabled = false;
+                return;
+            }
+            this.audioBatchJobId = data.job_id;
+            if (cancel) cancel.disabled = false;
+            this.pollAudioBatch();
+        } catch (error) {
+            console.error('[WorksetCuration] Failed to start audio batch:', error);
+            if (statusEl) statusEl.textContent = 'Error: ' + (error.message || error);
+            if (start) start.disabled = false;
+        }
+    }
+
+    pollAudioBatch() {
+        if (!this.audioBatchJobId) return;
+        const statusEl = document.getElementById('audio-batch-status');
+        const bar = document.getElementById('audio-batch-progress-bar');
+        const cancel = document.getElementById('audio-batch-cancel');
+
+        const tick = async () => {
+            if (!this.audioBatchJobId) return;
+            try {
+                const response = await fetch(`/api/pronunciation/batch/status/${this.audioBatchJobId}`);
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok || !data.success) {
+                    throw new Error(data.error || 'Failed to fetch batch status');
+                }
+                const job = data.job || {};
+                const total = job.total || 0;
+                const processed = job.processed || 0;
+                const pct = total ? Math.round((processed / total) * 100) : 0;
+                if (bar) { bar.style.width = pct + '%'; bar.textContent = pct + '%'; }
+                if (statusEl) statusEl.textContent = job.message || `Processing ${processed}/${total}`;
+
+                if (job.status === 'completed' || job.status === 'cancelled' || job.status === 'failed') {
+                    if (cancel) cancel.disabled = true;
+                    if (job.status === 'failed') {
+                        if (statusEl) statusEl.textContent = 'Job failed: ' + (job.error || job.message || 'unknown error');
+                    } else if (job.status === 'completed' && job.summary) {
+                        if (statusEl) {
+                            statusEl.textContent =
+                                `Done: ${job.summary.success} ok, ${job.summary.skipped} skipped, ${job.summary.failed} failed.`;
+                        }
+                    }
+                    this.audioBatchJobId = null;
+                    // Refresh curation data (entries may now have audio attached)
+                    this.loadCurationProgress();
+                    this.loadCurrentEntry(0);
+                    return;
+                }
+                this.audioBatchPollTimer = setTimeout(tick, 1000);
+            } catch (error) {
+                console.error('[WorksetCuration] Error polling audio batch:', error);
+                if (statusEl) statusEl.textContent = 'Error polling job: ' + (error.message || error);
+                if (cancel) cancel.disabled = true;
+                this.audioBatchJobId = null;
+            }
+        };
+        tick();
+    }
+
+    cancelAudioBatch() {
+        if (!this.audioBatchJobId) return;
+        fetch(`/api/pronunciation/batch/cancel/${this.audioBatchJobId}`, {
+            method: 'POST',
+            headers: { 'X-CSRF-TOKEN': this.getCsrfToken() }
+        }).catch((error) => {
+            console.error('[WorksetCuration] Cancel audio batch error:', error);
         });
     }
 

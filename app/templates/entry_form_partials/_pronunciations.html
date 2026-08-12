@@ -56,7 +56,7 @@
                         <label class="form-label small fw-medium text-secondary mb-1">Audio</label>
                         <div class="d-flex align-items-center gap-2">
                             <div class="flex-grow-1 text-truncate text-muted small px-2 py-1 bg-light bg-opacity-25 rounded border"
-                                 x-text="item.audioPath || 'No audio file attached'"></div>
+                                 x-text="item.audioPath ? (item.audioPaths && item.audioPaths.length > 1 ? item.audioPath + ' +' + (item.audioPaths.length - 1) + ' more' : item.audioPath) : 'No audio file attached'"></div>
                             <button class="btn btn-sm btn-light border upload-audio-btn" type="button"
                                     :data-index="pi" title="Upload audio file">
                                 <i class="fas fa-upload"></i>

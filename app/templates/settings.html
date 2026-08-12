@@ -197,6 +197,33 @@
 
                 <fieldset class="mb-4">
                     <legend class="h6">
+                        Text-to-Speech (Pronunciation Audio)
+                        <i class="fas fa-info-circle text-muted ms-1"
+                           data-bs-toggle="tooltip"
+                           data-bs-placement="top"
+                           title="Generate pronunciation audio from IPA. Engines are plugins; Google Cloud TTS supports IPA directly via SSML phonemes. Other engines can be added later."></i>
+                    </legend>
+                    <div class="row">
+                        <div class="col-md-6">
+                            {{ render_field(form.tts_enabled, class="form-check-input") }}
+                        </div>
+                        <div class="col-md-6">
+                            {{ render_field(form.tts_google_language_code, class="form-control", placeholder="en-GB") }}
+                        </div>
+                    </div>
+                    <div class="row mt-2">
+                        <div class="col-md-6">
+                            {{ render_field(form.tts_google_voice, class="form-control", placeholder="en-GB-Standard-D") }}
+                        </div>
+                        <div class="col-md-6">
+                            {{ render_field(form.tts_google_credentials_json, class="form-control font-monospace", rows="4", placeholder='{"type": "service_account", ...}') }}
+                            <small class="form-text text-muted">Alternatively set <code>GOOGLE_APPLICATION_CREDENTIALS</code> (path) or <code>TTS_GOOGLE_CREDENTIALS_JSON</code> env vars — stored credentials take precedence.</small>
+                        </div>
+                    </div>
+                </fieldset>
+
+                <fieldset class="mb-4">
+                    <legend class="h6">
                         External Services
                         <i class="fas fa-info-circle text-muted ms-1"
                            data-bs-toggle="tooltip"

@@ -73,6 +73,13 @@ class XQueryBuilder:
         entry_path = XQueryBuilder.get_element_path("entry", has_namespace)
         sense_path = XQueryBuilder.get_element_path("sense", has_namespace)
 
+        # XQuery string literals escape embedded quotes by doubling them (see
+        # escape_xquery_string). Escaping here — rather than trusting callers —
+        # keeps every route that interpolates a user-supplied entry_id safe from
+        # query injection, while still accepting any id (including space-containing
+        # GUIDs) as long as it contains no quote characters.
+        entry_id = XQueryBuilder.escape_xquery_string(entry_id)
+
         return f"""{prologue}
         for $entry in (collection()//{entry_path}[@id="{entry_id}" or @guid="{entry_id}" or ends-with(@id, "_{entry_id}") or {sense_path}/@id="{entry_id}" or {sense_path}/@guid="{entry_id}"])[1]
         return $entry
